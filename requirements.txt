@@ -7,6 +7,7 @@ psycopg[binary]==3.3.6
 datasus-dbc==0.1.3
 
 # ── Lakehouse (E2): Iceberg sobre Parquet ──
-pyiceberg[pyarrow]==0.12.0
+pyiceberg[pyarrow,pyiceberg-core]==0.12.0
+pyiceberg-core==0.10.1
 pyarrow==26.0.0
 duckdb==1.5.6

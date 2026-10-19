@@ -146,6 +146,25 @@ services:
       seaweedfs:
         condition: service_healthy
 
+  # ── Caminho de lote: brutos para o bucket e origem para lote.* ─────
+  # Roda uma vez depois da carga; para repetir: docker compose run --rm lote
+  lote:
+    build: .
+    container_name: leitos_lote
+    profiles: ["e2"]
+    restart: "no"
+    command: ["python", "-m", "lakehouse.lote"]
+    environment:
+      <<: *lakehouse_env
+      DIRS_BRUTOS: /dados/brutos:/app/dados/amostra
+    volumes:
+      - dados_brutos:/dados/brutos:ro
+    depends_on:
+      loader:
+        condition: service_completed_successfully
+      lakehouse-init:
+        condition: service_completed_successfully
+
 volumes:
   postgres_data:
   dados_brutos:
