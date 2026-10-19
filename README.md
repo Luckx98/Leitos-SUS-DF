@@ -13,13 +13,18 @@ Plataforma de dados do Grupo 01 de Banco de Dados 2 (UnB/FCTE, 2026/2). Ela cruz
 ## Pipeline de dados
 
 ```text
-FONTES ──► MIGRAÇÕES ──► CARGA ──► BANCO DE ORIGEM
+FONTES ──► MIGRAÇÕES ──► CARGA ──► BANCO DE ORIGEM ──► LOTE e CDC ──► LAKEHOUSE (ICEBERG)
 ```
+
+(`LOTE` e `CDC` são dois caminhos paralelos, não um passo único — ver o diagrama em [docs/index.md](docs/index.md) ou no [site publicado](https://luckx98.github.io/Leitos-SUS-DF/).)
 
 - **FONTES:** arquivos públicos do DATASUS com as internações (SIH/SUS) e os estabelecimentos e leitos (CNES) do DF e de Goiás, de 2021 até a última competência publicada, mais as tabelas de CID-10, municípios e regiões de saúde. Um recorte versionado em `dados/amostra/` permite subir a plataforma sem rede.
 - **MIGRAÇÕES:** o PostgreSQL sobe e o esquema é criado a partir de um banco vazio, em ordem, antes de qualquer carga.
 - **CARGA:** o loader baixa os arquivos, valida cada linha e grava um arquivo por transação. Arquivos já carregados são ignorados; linhas inválidas ficam registradas com o motivo.
-- **BANCO DE ORIGEM:** PostgreSQL insert-only, que nunca sobrescreve: guarda as versões do cadastro, os leitos mês a mês e, em cada internação, a data do evento, a competência e a data de carga. Fica pronto para a captura de mudanças (CDC).
+- **BANCO DE ORIGEM:** PostgreSQL insert-only, que nunca sobrescreve: guarda as versões do cadastro, os leitos mês a mês e, em cada internação, a data do evento, a competência e a data de carga. Sobe pronto para a captura de mudanças (`wal_level=logical`), usada a partir daqui.
+- **LOTE:** exportação incremental, por marca d'água de carga, com reprocessamento da janela de dado atrasado. O caminho mais barato; cobre a carga inicial e o reprocessamento em massa.
+- **CDC:** Debezium lê o WAL lógico e publica no Redpanda; um consumidor Python grava no Iceberg com latência de segundos.
+- **LAKEHOUSE (ICEBERG):** os dois caminhos escrevem o mesmo esquema, em namespaces separados (`lote.*` e `cdc.*`), para poderem ser reconciliados e comparados. Decisão e medições no [ADR 0002](docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md).
 
 ## Componentes
 
@@ -99,10 +104,34 @@ docker compose run --rm loader python -m loader.qualidade  # verificações sobr
 
 As verificações de qualidade também rodam automaticamente no fim de toda carga. Uma verificação com erro faz o loader terminar com código 1.
 
+### Perfil e2 — lakehouse (lote e CDC)
+
+Além dos três serviços da E1, o perfil `e2` sobe um lakehouse Iceberg alimentado por dois caminhos a partir da mesma origem: um lote incremental e um fluxo de CDC (Debezium → Redpanda → consumidor Python). Os dois escrevem o mesmo esquema, em `lote.*` e `cdc.*`, para poderem ser comparados. Decisão e medições completas: [ADR 0002](docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md).
+
+```bash
+docker compose --profile e2 up --build -d
+docker compose logs -f cdc
+```
+
+Sobe mais cinco serviços: SeaweedFS (S3, porta `${S3_PORT:-8333}`), Redpanda (Kafka, porta externa `${KAFKA_PORT:-19092}`), Debezium, `lakehouse-init` (catálogo e buckets) e `lote`. Conferir que os dois caminhos batem com a origem:
+
+```bash
+docker compose run --rm --no-deps lote python -m lakehouse.reconciliar
+```
+
+Demonstrações prontas (com o perfil `e2` no ar):
+
+| Script | O que mostra |
+| --- | --- |
+| `scripts/demo_cdc.sh [UF] [COMPETENCIA]` | uma competência nova na origem chega a `cdc.internacao` sem passo manual |
+| `scripts/demo_semantica.sh` | releitura do CDC com e sem deduplicação, e viagem no tempo no Iceberg |
+| `scripts/compactar_cdc.sh` | junta os arquivos pequenos de `cdc.*` (precisa parar o consumidor) |
+| `scripts/medir_ingestao.sh [COMPETENCIA]` | custo do lote, do snapshot do CDC e de uma competência nova, com memória e CPU por fase |
+
 ### Recomeçar do zero
 
 ```bash
-docker compose down -v   # apaga o banco e os arquivos baixados
+docker compose down -v   # apaga o banco, os arquivos baixados e o lakehouse
 ```
 
 ## Documentação
@@ -118,6 +147,14 @@ A documentação completa está no [GitHub Pages do Leitos SUS-DF](https://luckx
 | Caracterização da carga | [docs/e1/05-caracterizacao-da-carga.md](docs/e1/05-caracterizacao-da-carga.md) |
 | Histórico da origem | [docs/e1/06-historico-da-origem.md](docs/e1/06-historico-da-origem.md) |
 | ADR 0001 — origem insert-only | [docs/adr/0001-origem-insert-only-versionada-por-competencia.md](docs/adr/0001-origem-insert-only-versionada-por-competencia.md) |
+| Visão da E2 — lakehouse por lote e CDC | [docs/e2/index.md](docs/e2/index.md) |
+| Lote incremental | [docs/e2/01-lote-incremental.md](docs/e2/01-lote-incremental.md) |
+| CDC | [docs/e2/02-cdc.md](docs/e2/02-cdc.md) |
+| Formato aberto | [docs/e2/03-formato-aberto.md](docs/e2/03-formato-aberto.md) |
+| Semântica de entrega | [docs/e2/04-semantica-de-entrega.md](docs/e2/04-semantica-de-entrega.md) |
+| Dado atrasado | [docs/e2/05-dado-atrasado.md](docs/e2/05-dado-atrasado.md) |
+| Serialização e compressão | [docs/e2/06-serializacao-e-compressao.md](docs/e2/06-serializacao-e-compressao.md) |
+| ADR 0002 — lote e CDC sobre Iceberg | [docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md](docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md) |
 | Uso de IA | [AI-USAGE.md](AI-USAGE.md) |
 
 Para visualizar o site localmente:
@@ -142,6 +179,10 @@ dados/referencia/   região de saúde dos hospitais do DF (tabela curada)
 sql/caracterizacao/ medição de volume, escrita, leitura e defasagem
 sql/historico/      consultas que dependem do histórico da origem
 sql/adr/            medição das alternativas do ADR 0001
+lakehouse/          lakehouse Iceberg: lote incremental, consumidor de CDC, janela, compactação
+infra/              configuração do Debezium e do SeaweedFS
+scripts/            demonstrações e medições do perfil e2 (CDC, semântica, ingestão)
+medicoes/e2/        resultados medidos do perfil e2 (formatos, ingestão, Iceberg x Delta, semântica)
 docs/               documentação publicada pelo MkDocs
 ```
 

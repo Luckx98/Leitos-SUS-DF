@@ -1,0 +1,14 @@
+# Iceberg x Delta — 2026-10-19 14:21 — 696700 internações com saída em 2024
+
+## 1 e 2. Escrita (particionado por mês) e leitura pelo DuckDB (agregação L5)
+formato  escrita s      MB arquivos leitura ms
+iceberg        0.5    13.1       15        7.8
+delta          0.7    16.6       15       11.6
+
+## 3. Evolução de esquema: nova coluna 'faixa_etaria'
+iceberg    0.04 s | linhas antigas com a coluna nula: 696700 | novas preenchidas: 1000 | arquivos antigos reescritos: 0
+delta      0.01 s | linhas antigas com a coluna nula: 696700 | novas preenchidas: 1000 | arquivos antigos reescritos: 0
+
+## 4. Evolução de partição: de mês para ano
+iceberg    0.01 s | só metadados: arquivos 16 -> 16 (os antigos seguem válidos; os novos já saem por ano)
+delta      0.42 s | reescreve a tabela inteira (697700 linhas) e muda a coluna física de partição: quem filtrava por dt_saida_mes precisa mudar a consulta

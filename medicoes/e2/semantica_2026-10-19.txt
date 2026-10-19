@@ -1,0 +1,42 @@
+# Demonstração da semântica de entrega — 2026-10-19 11:35:17
+# amostra (DF, 01/2025): 20995 internações, 6243 estabelecimentos, 566 leitos
+
+== 1. Estado inicial (cdc.* contra a origem)
+carga                   origem         5 | cdc         5 dup     0 lat.média     24.3s ok
+estabelecimento         origem      6243 | cdc      6243 dup     0 lat.média     24.3s ok
+estabelecimento_versao  origem      6243 | cdc      6243 dup     0 lat.média     24.3s ok
+leito                   origem       566 | cdc       566 dup     0 lat.média     24.3s ok
+internacao              origem     20995 | cdc     20995 dup     0 lat.média     24.3s ok
+
+== 2. Reexecução do lote
+lote.carga                   marca 5 -> 5:         0 linhas,   0 arquivos,    0.0 s
+lote.estabelecimento         marca 5 -> 5:         0 linhas,   0 arquivos,    0.0 s
+lote.estabelecimento_versao  marca 5 -> 5:         0 linhas,   0 arquivos,    0.0 s
+lote.leito                   marca 5 -> 5:         0 linhas,   0 arquivos,    0.0 s
+lote.internacao              marca 5 -> 5:         0 linhas,   0 arquivos,    0.0 s
+linhas regravadas pelo lote: 0
+
+== 3. Releitura forçada do CDC desde o offset 0, COM deduplicação
+eventos relidos: 34052 | linhas gravadas: 0 | duplicatas descartadas: 34052
+carga                   origem         5 | cdc         5 dup     0 lat.média     24.3s ok
+estabelecimento         origem      6243 | cdc      6243 dup     0 lat.média     24.3s ok
+estabelecimento_versao  origem      6243 | cdc      6243 dup     0 lat.média     24.3s ok
+leito                   origem       566 | cdc       566 dup     0 lat.média     24.3s ok
+internacao              origem     20995 | cdc     20995 dup     0 lat.média     24.3s ok
+
+== 4. A mesma releitura SEM deduplicação (pelo menos uma vez pura)
+eventos relidos: 34052 | linhas gravadas: 34052 | duplicatas descartadas: 0
+carga                   origem         5 | cdc        10 dup     5 lat.média    150.6s DIVERGE
+estabelecimento         origem      6243 | cdc     12486 dup  6243 lat.média    150.6s DIVERGE
+estabelecimento_versao  origem      6243 | cdc     12486 dup  6243 lat.média    150.6s DIVERGE
+leito                   origem       566 | cdc      1132 dup   566 lat.média    150.6s DIVERGE
+internacao              origem     20995 | cdc     41990 dup 20995 lat.média    150.6s DIVERGE
+
+== 5. Viagem no tempo: cdc.* de volta ao snapshot anterior ao passo 4
+carga                   origem         5 | cdc         5 dup     0 lat.média     24.3s ok
+estabelecimento         origem      6243 | cdc      6243 dup     0 lat.média     24.3s ok
+estabelecimento_versao  origem      6243 | cdc      6243 dup     0 lat.média     24.3s ok
+leito                   origem       566 | cdc       566 dup     0 lat.média     24.3s ok
+internacao              origem     20995 | cdc     20995 dup     0 lat.média     24.3s ok
+
+resultado: cdc.* reconciliado de novo com a origem

@@ -1,0 +1,114 @@
+# Medição dos caminhos de ingestão — 2026-10-19 09:19:47 -03
+# Máquina: 8 CPUs, 5,7Gi de RAM
+# Origem: 3669874 internações, 410 cargas
+
+== Fase 1: lote inicial (= custo de cada recarga completa da opção nula)
+   bruto: 408 arquivo(s) enviados (347.3 MB), 3 já estavam no bucket
+   lote.carga                   marca 0 -> 410:       410 linhas,   1 arquivos,    0.2 s
+   lote.estabelecimento         marca 0 -> 410:     26048 linhas,   1 arquivos,    0.3 s
+   lote.estabelecimento_versao  marca 0 -> 410:     30919 linhas,   1 arquivos,    0.4 s
+   lote.leito                   marca 0 -> 410:    240132 linhas,   1 arquivos,    2.3 s
+   lote.internacao              marca 0 -> 410:   3669874 linhas,  21 arquivos,   71.3 s
+   tempo total: 103 s
+   pico de memória / CPU média por container:
+     leitos-lakehouse-init-run-a2677beed98b      94 MiB    8.3%
+     leitos-lote-run-13afff7db8d0    1501 MiB   74.2%
+     leitos_postgres                  242 MiB   18.1%
+     leitos_seaweedfs                 374 MiB   10.3%
+
+== Fase 2: snapshot do CDC (origem inteira para cdc.*)
+   9s: cdc.internacao = 0 / 3669874
+   44s: cdc.internacao = 0 / 3669874
+   80s: cdc.internacao = 238949 / 3669874
+   115s: cdc.internacao = 488949 / 3669874
+   153s: cdc.internacao = 738949 / 3669874
+   189s: cdc.internacao = 938949 / 3669874
+   226s: cdc.internacao = 1138949 / 3669874
+   263s: cdc.internacao = 1388949 / 3669874
+   304s: cdc.internacao = 1588949 / 3669874
+   343s: cdc.internacao = 1788949 / 3669874
+   381s: cdc.internacao = 2038949 / 3669874
+   418s: cdc.internacao = 2238949 / 3669874
+   455s: cdc.internacao = 2488949 / 3669874
+   492s: cdc.internacao = 2688949 / 3669874
+   530s: cdc.internacao = 2888949 / 3669874
+   566s: cdc.internacao = 3088949 / 3669874
+   611s: cdc.internacao = 3338949 / 3669874
+   651s: cdc.internacao = 3538949 / 3669874
+   685s: cdc.internacao = 3638949 / 3669874
+   720s: cdc.internacao = 3638949 / 3669874
+   752s: cdc.internacao = 3638949 / 3669874
+   786s: cdc.internacao = 3638949 / 3669874
+   819s: cdc.internacao = 3638949 / 3669874
+   851s: cdc.internacao = 3638949 / 3669874
+   886s: cdc.internacao = 3638949 / 3669874
+   919s: cdc.internacao = 3669874 / 3669874
+   tempo até cdc.internacao completa: 919 s
+   debezium: 2026-10-19 12:27:42,129 INFO  [io.debezium.pipeline.source.AbstractSnapshotChangeEventSource] (debezium-postgresconnector-leito
+   debezium: 2026-10-19 12:27:42,360 INFO  [io.debezium.pipeline.ChangeEventSourceCoordinator] (debezium-postgresconnector-leitos-change-eve
+   pico de memória / CPU média por container:
+     leitos_cdc                      1024 MiB   86.2%
+     leitos_debezium                  487 MiB   50.7%
+     leitos-lote-run-0709553ed1fd      78 MiB   88.3%
+     leitos-lote-run-0763729cfe91      66 MiB   62.0%
+     leitos-lote-run-0768027faad1      65 MiB   64.3%
+     leitos-lote-run-3ea49b52aa8e      88 MiB   75.2%
+     leitos-lote-run-3ece0b375d76      61 MiB   81.4%
+     leitos-lote-run-50ca9bf40060      59 MiB   84.3%
+     leitos-lote-run-5a3d4500251c      48 MiB   84.4%
+     leitos-lote-run-66cc8566e9ed      43 MiB   65.1%
+     leitos-lote-run-7051034ec2f0      66 MiB   80.1%
+     leitos-lote-run-7baa5537f793      77 MiB   95.7%
+     leitos-lote-run-88ae8158ee56      46 MiB   83.1%
+     leitos-lote-run-92a56d7dc588      43 MiB   77.9%
+     leitos-lote-run-9ac2906eccb8      81 MiB   48.6%
+     leitos-lote-run-a19429e49c2f      33 MiB   65.0%
+     leitos-lote-run-a31ad151c541      79 MiB   78.4%
+     leitos-lote-run-a4d13903cdfd      81 MiB   38.6%
+     leitos-lote-run-bd645e00e2a4      64 MiB   60.4%
+     leitos-lote-run-ecee1851917e      83 MiB   80.2%
+     leitos-lote-run-fdbdcdb579b9       0 MiB    0.0%
+     leitos_postgres                  146 MiB    4.4%
+     leitos_redpanda                  171 MiB    6.4%
+     leitos_seaweedfs                 380 MiB   13.6%
+
+== Fase 3: competência nova (2026-08, DF e GO)
+   origem: TAB_SIH.zip já carregado (mesmo sha256); ignorado
+   origem: estabelecimento_regiao_saude_df.csv já carregado (mesmo sha256); ignorado
+   origem: STDF2608.dbc já carregado (mesmo sha256); ignorado
+   origem: STGO2608.dbc já carregado (mesmo sha256); ignorado
+   origem: LTDF2608.dbc já carregado (mesmo sha256); ignorado
+   origem: LTGO2608.dbc já carregado (mesmo sha256); ignorado
+   origem: RDDF2608.dbc: 21637 lidas, 21637 inseridas, 0 rejeitadas
+   origem: RDGO2608.dbc: 39087 lidas, 39086 inseridas, 1 rejeitadas
+   loader: 34 s
+   CDC: cdc.internacao com as 3730597 internações 4 s depois do fim da carga
+   lote.carga                   marca 410 -> 412:         2 linhas,   1 arquivos,    0.2 s
+   lote.estabelecimento         marca 410 -> 410:         0 linhas,   0 arquivos,    0.0 s
+   lote.estabelecimento_versao  marca 410 -> 410:         0 linhas,   0 arquivos,    0.1 s
+   lote.leito                   marca 410 -> 410:         0 linhas,   0 arquivos,    0.0 s
+   lote.internacao              marca 410 -> 412:     60723 linhas,   1 arquivos,    1.5 s
+   competência mais recente exportada: 2026-08-01 | janela: saídas a partir de 2026-05-01 | marca d'água: 412
+     saídas de 05/2026:   63233 linhas antes ->   63233 depois
+     saídas de 06/2026:   55589 linhas antes ->   55589 depois
+     saídas de 07/2026:   50210 linhas antes ->   50210 depois
+     saídas de 08/2026:   41965 linhas antes ->   41965 depois
+   lote.maturidade: 146 meses, 6 provisórios (GO 06/2026, GO 07/2026, GO 08/2026, DF 06/2026, DF 07/2026, DF 08/2026)
+     carga                    sem partição   2 arquivos (  0.04 MB) -> 1 arquivo, 412 linhas
+   lote.carga                   arquivos:    2 ->    1
+   lote.estabelecimento         arquivos:    1 ->    1
+   lote.estabelecimento_versao  arquivos:    1 ->    1
+   lote.leito                   arquivos:    1 ->    1
+     internacao               2026           3 arquivos (  7.91 MB) -> 1 arquivo, 449580 linhas
+   lote.internacao              arquivos:    9 ->    7
+   lote incremental (exportação + janela + compactação): 18 s
+   pico de memória / CPU média por container:
+     leitos_cdc                       553 MiB   17.6%
+     leitos_debezium                  455 MiB   20.1%
+     leitos-loader-run-411dd2ad7d77      85 MiB   13.2%
+     leitos-lote-run-835dcf940cb3     664 MiB   76.5%
+     leitos_postgres                  268 MiB   60.8%
+     leitos_redpanda                   61 MiB    5.2%
+     leitos_seaweedfs                 143 MiB    5.4%
+
+== Reconciliação final

@@ -1,0 +1,24 @@
+# Medição de formatos — 2026-10-19 11:53
+# internações: 3669874
+
+## 1. Compressão do Parquet (arquivo único, dados ordenados por dt_saida)
+codec    tamanho MB  B/linha escrita s    pontual (HRT, mar/2024)     agregação de 2024 (L5)    varredura completa (L6)
+none          124.7     34.0       3.4                     7.0 ms                    30.1 ms                    66.7 ms
+snappy         80.2     21.9       3.7                     7.3 ms                    27.3 ms                    69.4 ms
+zstd           62.2     17.0       3.8                     7.8 ms                    30.1 ms                    70.7 ms
+gzip           58.2     15.9      32.3                    10.8 ms                    35.4 ms                    74.6 ms
+
+## 2. Particionamento (zstd)
+variante       arquivos MB médio/arquivo  pontual (1 hospital, 1 mês)
+sem partição          1            62.25                       8.1 ms
+por ano               7             8.96                       8.9 ms
+por mês              72             0.96                       6.6 ms
+
+## 3. Mensagens do CDC (100000 eventos de internação)
+formato                     B/evento  3,67 mi de eventos (GB)
+JSON                          1004.5                     3.69
+JSON + zstd (lote 16 KB)        77.1                     0.28
+JSON + zstd (lote 1 MB)         41.3                     0.15
+Avro                           307.6                     1.13
+Avro + zstd (lote 16 KB)        41.4                     0.15
+Avro + zstd (lote 1 MB)         35.7                     0.13
