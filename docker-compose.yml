@@ -165,6 +165,25 @@ services:
       lakehouse-init:
         condition: service_completed_successfully
 
+  # ── Caminho de CDC: eventos do Redpanda para cdc.* ────────────────
+  cdc:
+    build: .
+    container_name: leitos_cdc
+    profiles: ["e2"]
+    restart: unless-stopped
+    command: ["python", "-m", "lakehouse.cdc"]
+    environment:
+      <<: *lakehouse_env
+      KAFKA_BOOTSTRAP: redpanda:9092
+      CDC_LINHAS_POR_LOTE: ${CDC_LINHAS_POR_LOTE:-50000}
+      CDC_SEGUNDOS_POR_LOTE: ${CDC_SEGUNDOS_POR_LOTE:-5}
+    mem_limit: 1g
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      lakehouse-init:
+        condition: service_completed_successfully
+
 volumes:
   postgres_data:
   dados_brutos:
