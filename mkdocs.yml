@@ -38,6 +38,13 @@ nav:
       - Histórico da origem: e1/06-historico-da-origem.md
       - ADR 0001: adr/0001-origem-insert-only-versionada-por-competencia.md
   - Entrega 2:
+      - Visão da entrega: e2/index.md
+      - Lote incremental: e2/01-lote-incremental.md
+      - CDC: e2/02-cdc.md
+      - Formato aberto: e2/03-formato-aberto.md
+      - Semântica de entrega: e2/04-semantica-de-entrega.md
+      - Dado atrasado: e2/05-dado-atrasado.md
+      - Serialização e compressão: e2/06-serializacao-e-compressao.md
       - ADR 0002: adr/0002-lote-incremental-e-cdc-sobre-iceberg.md
   - Diário:
       - Semana de 05/10: diario/2026-10-05.md
