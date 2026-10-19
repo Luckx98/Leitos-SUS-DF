@@ -15,8 +15,8 @@ import logging
 import sys
 from collections import Counter
 
+import duckdb
 import psycopg
-import pyarrow.compute as pc
 
 from lakehouse.catalogo import abrir_catalogo
 from lakehouse.cdc import CHAVES
@@ -36,19 +36,34 @@ def contar_origem(conexao: psycopg.Connection, tabela: str, carga: int | None) -
     return Counter(dict(linhas))
 
 
-def ler_iceberg(catalogo, namespace: str, tabela: str, carga: int | None):
+def medir_iceberg(con: duckdb.DuckDBPyConnection, catalogo, namespace: str, tabela: str,
+                  carga: int | None) -> tuple[Counter, int, int, float] | None:
+    """Conta, deduplica e mede a latência no motor do DuckDB, sobre o Arrow da varredura:
+    nenhuma chave vira objeto Python (3,67 milhões de tuplas num set estourava a memória)."""
     coluna = COLUNA_CARGA[tabela]
     iceberg = catalogo.load_table(f"{namespace}.{tabela}")
     if iceberg.current_snapshot() is None:
         return None
     campos = tuple(dict.fromkeys((coluna, *CHAVES[tabela], "_commit_em", "_ingerido_em")))
     varredura = iceberg.scan(selected_fields=campos, **({"row_filter": f"{coluna} == {carga}"} if carga else {}))
-    return varredura.to_arrow()
+    con.register("_varredura", varredura.to_arrow())
+    try:
+        contagem = Counter(dict(con.execute(f"SELECT {coluna}, count(*) FROM _varredura GROUP BY 1").fetchall()))
+        chave = ", ".join(CHAVES[tabela])
+        total, duplicatas, media_s = con.execute(f"""
+            SELECT count(*), count(*) - count(DISTINCT ({chave})),
+                   avg(epoch(_ingerido_em) - epoch(_commit_em))
+            FROM _varredura
+        """).fetchone()
+    finally:
+        con.unregister("_varredura")
+    return contagem, total, duplicatas, media_s or 0
 
 
 def reconciliar(config: ConfigLakehouse, carga: int | None = None,
                 caminhos: tuple[str, ...] = ("lote", "cdc")) -> bool:
     catalogo = abrir_catalogo(config)
+    con = duckdb.connect()
     ok = True
     with psycopg.connect(config.database_url) as conexao:
         for tabela in TABELAS:
@@ -56,21 +71,18 @@ def reconciliar(config: ConfigLakehouse, carga: int | None = None,
             total_origem = sum(origem.values())
             partes = [f"{tabela:<23} origem {total_origem:>9}"]
             for namespace in caminhos:
-                dados = ler_iceberg(catalogo, namespace, tabela, carga)
-                if dados is None or dados.num_rows == 0:
+                resultado = medir_iceberg(con, catalogo, namespace, tabela, carga)
+                if resultado is None:
                     partes.append(f"{namespace} {0:>9}")
                     ok &= total_origem == 0
                     continue
-                contagem = Counter(dados[COLUNA_CARGA[tabela]].to_pylist())
-                chaves = set(zip(*(dados[c].to_pylist() for c in CHAVES[tabela])))
-                duplicatas = dados.num_rows - len(chaves)
-                latencia = pc.subtract(dados["_ingerido_em"], dados["_commit_em"]).cast("int64")
-                media_s = pc.mean(latencia).as_py() / 1e6 if dados.num_rows else 0
+                contagem, total, duplicatas, media_s = resultado
                 igual = contagem == origem and duplicatas == 0
                 ok &= igual
-                partes.append(f"{namespace} {dados.num_rows:>9} dup {duplicatas:>5} lat.média {media_s:>8.1f}s "
+                partes.append(f"{namespace} {total:>9} dup {duplicatas:>5} lat.média {media_s:>8.1f}s "
                               f"{'ok' if igual else 'DIVERGE'}")
             log.info(" | ".join(partes))
+    con.close()
     return ok
 
 
