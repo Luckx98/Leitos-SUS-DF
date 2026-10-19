@@ -177,7 +177,7 @@ services:
       KAFKA_BOOTSTRAP: redpanda:9092
       CDC_LINHAS_POR_LOTE: ${CDC_LINHAS_POR_LOTE:-50000}
       CDC_SEGUNDOS_POR_LOTE: ${CDC_SEGUNDOS_POR_LOTE:-5}
-    mem_limit: 1g
+    mem_limit: 1536m
     depends_on:
       redpanda:
         condition: service_healthy

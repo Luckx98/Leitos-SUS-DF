@@ -33,7 +33,7 @@ from decimal import Decimal
 
 import pyarrow as pa
 from confluent_kafka import OFFSET_BEGINNING, Consumer, TopicPartition
-from pyiceberg.expressions import And, GreaterThanOrEqual, LessThanOrEqual
+from pyiceberg.expressions import In
 from pyiceberg.table import Table
 
 from lakehouse.catalogo import abrir_catalogo
@@ -98,16 +98,21 @@ def deduplicar_no_lote(linhas: list[dict], tabela: str) -> list[dict]:
 
 
 def chaves_ja_gravadas(iceberg: Table, tabela: str, linhas: list[dict]) -> set[tuple]:
-    """Chaves já presentes no Iceberg, lidas só do intervalo de datas que o lote toca."""
+    """Chaves já presentes no Iceberg, lidas só das datas exatas que o lote toca.
+
+    Um filtro por IN nas datas distintas, em vez de um intervalo min-max, evita
+    puxar meses inteiros quando o lote toca datas espalhadas (ex.: fim de um
+    arquivo e início do próximo); isso é o que fazia o consumidor bater no
+    limite de memória perto do fim do snapshot da carga completa.
+    """
     if iceberg.current_snapshot() is None:
         return set()
     filtro = None
     coluna = PARTICAO_ANUAL.get(tabela)
     if coluna:
-        datas = [l[coluna] for l in linhas if l[coluna] is not None]
+        datas = {l[coluna] for l in linhas if l[coluna] is not None}
         if datas:
-            filtro = And(GreaterThanOrEqual(coluna, min(datas).isoformat()),
-                         LessThanOrEqual(coluna, max(datas).isoformat()))
+            filtro = In(coluna, {d.isoformat() for d in datas})
     varredura = iceberg.scan(selected_fields=CHAVES[tabela], **({"row_filter": filtro} if filtro else {}))
     existentes = varredura.to_arrow()
     return set(zip(*(existentes[c].to_pylist() for c in CHAVES[tabela])))

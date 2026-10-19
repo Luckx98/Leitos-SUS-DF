@@ -37,5 +37,7 @@ nav:
       - Caracterização da carga: e1/05-caracterizacao-da-carga.md
       - Histórico da origem: e1/06-historico-da-origem.md
       - ADR 0001: adr/0001-origem-insert-only-versionada-por-competencia.md
+  - Entrega 2:
+      - ADR 0002: adr/0002-lote-incremental-e-cdc-sobre-iceberg.md
   - Diário:
       - Semana de 05/10: diario/2026-10-05.md
