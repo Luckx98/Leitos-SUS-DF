@@ -30,6 +30,7 @@ services:
     command: ["alembic", "upgrade", "head"]
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leitos}:${POSTGRES_PASSWORD:-leitos}@postgres:5432/${POSTGRES_DB:-leitos}
+      DEBEZIUM_PASSWORD: ${DEBEZIUM_PASSWORD:-debezium}
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,6 +56,99 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # ══ Perfil e2: ingestão em lote e CDC até o lakehouse ══════════════
+  # docker compose --profile e2 up --build
+  # Sem o perfil, só sobem os serviços da E1 acima.
+
+  # ── Armazenamento de objetos compatível com S3 ─────────────────
+  # O MinIO não publica mais imagem pública; o SeaweedFS fala o mesmo protocolo.
+  seaweedfs:
+    image: docker.io/chrislusf/seaweedfs:4.01
+    container_name: leitos_seaweedfs
+    profiles: ["e2"]
+    restart: unless-stopped
+    command: ["server", "-ip.bind=0.0.0.0", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json", "-master.volumeSizeLimitMB=1024"]
+    ports:
+      - "${S3_PORT:-8333}:8333"
+    volumes:
+      - seaweedfs_data:/data
+      - ./infra/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9333/cluster/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # ── Log de eventos (API Kafka), um único nó ──────────────────────
+  redpanda:
+    image: docker.io/redpandadata/redpanda:v26.2.5
+    container_name: leitos_redpanda
+    profiles: ["e2"]
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --kafka-addr=internal://0.0.0.0:9092,externo://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,externo://localhost:${KAFKA_PORT:-19092}
+      - --default-log-level=warn
+    ports:
+      - "${KAFKA_PORT:-19092}:19092"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # ── CDC: lê o WAL do PostgreSQL e publica no Redpanda ─────────────
+  debezium:
+    image: quay.io/debezium/server:3.6.3.Final
+    container_name: leitos_debezium
+    profiles: ["e2"]
+    restart: unless-stopped
+    environment:
+      DEBEZIUM_SOURCE_DATABASE_PASSWORD: ${DEBEZIUM_PASSWORD:-debezium}
+      JAVA_OPTS: -Xms128m -Xmx384m
+    volumes:
+      - ./infra/debezium/application.properties:/debezium/config/application.properties:ro
+      - debezium_data:/debezium/data
+    mem_limit: 768m
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redpanda:
+        condition: service_healthy
+
+  # ── Prepara o lakehouse: buckets, catálogo Iceberg e tabelas ───────
+  lakehouse-init:
+    build: .
+    container_name: leitos_lakehouse_init
+    profiles: ["e2"]
+    restart: "no"
+    command: ["python", "-m", "lakehouse.preparar"]
+    environment: &lakehouse_env
+      DATABASE_URL: postgresql://${POSTGRES_USER:-leitos}:${POSTGRES_PASSWORD:-leitos}@postgres:5432/${POSTGRES_DB:-leitos}
+      CATALOGO_URL: postgresql+psycopg://${POSTGRES_USER:-leitos}:${POSTGRES_PASSWORD:-leitos}@postgres:5432/iceberg
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: leitos
+      S3_SECRET_KEY: leitos-segredo
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      seaweedfs:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   dados_brutos:
+  seaweedfs_data:
+  redpanda_data:
+  debezium_data:
