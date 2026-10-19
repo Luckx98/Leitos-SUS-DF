@@ -38,7 +38,7 @@ from pyiceberg.table import Table
 
 from lakehouse.catalogo import abrir_catalogo
 from lakehouse.config import ConfigLakehouse
-from lakehouse.esquemas import PARTICAO_MENSAL, TABELAS
+from lakehouse.esquemas import PARTICAO_ANUAL, TABELAS
 
 log = logging.getLogger("lakehouse.cdc")
 
@@ -98,11 +98,11 @@ def deduplicar_no_lote(linhas: list[dict], tabela: str) -> list[dict]:
 
 
 def chaves_ja_gravadas(iceberg: Table, tabela: str, linhas: list[dict]) -> set[tuple]:
-    """Chaves já presentes no Iceberg, lidas só das partições que o lote toca."""
+    """Chaves já presentes no Iceberg, lidas só do intervalo de datas que o lote toca."""
     if iceberg.current_snapshot() is None:
         return set()
     filtro = None
-    coluna = PARTICAO_MENSAL.get(tabela)
+    coluna = PARTICAO_ANUAL.get(tabela)
     if coluna:
         datas = [l[coluna] for l in linhas if l[coluna] is not None]
         if datas:

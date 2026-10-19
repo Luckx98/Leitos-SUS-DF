@@ -154,6 +154,9 @@ def main() -> int:
         from lakehouse.janela import reprocessar_janela
         from lakehouse.esquemas import MESES_DE_MATURIDADE
         reprocessar_janela(config, MESES_DE_MATURIDADE)
+    # Junta os arquivos pequenos que o incremento e a janela deixaram em lote.*.
+    from lakehouse.compactar import compactar
+    compactar(config, ("lote",))
     return 0
 
 

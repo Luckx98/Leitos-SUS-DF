@@ -4,12 +4,12 @@
     python -m lakehouse.janela --meses 6
 
 O SIH processa a AIH depois da alta: 35% chegam 1 a 3 competências depois do mês
-em que o paciente saiu (medido na E1). Como lote.internacao é particionada pelo
-mês de saída, cada competência nova acrescenta linhas em partições antigas.
+em que o paciente saiu (medido na E1). Como lote.internacao é organizada pela
+data de saída, cada competência nova acrescenta linhas a meses já gravados.
 O tratamento explícito tem duas partes:
 
-1. Reprocessamento da janela: as partições dos últimos N meses de saída são
-   sobrescritas, numa operação atômica do Iceberg, com o estado atual da origem
+1. Reprocessamento da janela: as linhas dos últimos N meses de saída são
+   apagadas e regravadas, numa transação atômica do Iceberg, com o estado atual da origem
    (até a marca d'água do lote). É idempotente e corrige o que o incremento
    possa ter perdido (por exemplo, uma carga confirmada fora de ordem).
 2. Maturidade: lote.maturidade marca cada mês de saída como "provisório"
@@ -85,7 +85,7 @@ def reprocessar_janela(config: ConfigLakehouse, meses: int) -> None:
             "WHERE t.id_carga <= %(ate)s AND t.dt_saida >= %(inicio)s",
         )
 
-        # Sobrescrita atômica: numa única transação, apaga as partições da janela e
+        # Sobrescrita atômica: numa única transação, apaga as linhas da janela e
         # grava o estado atual da origem. A marca d'água é repetida para o lote não
         # reexportar. (pyiceberg 0.12 não grava fluxo em tabela particionada, por
         # isso delete + append em blocos, em vez de overwrite com RecordBatchReader.)

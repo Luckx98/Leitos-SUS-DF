@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.transforms import MonthTransform
+from pyiceberg.transforms import YearTransform
 from pyiceberg.types import (
     BooleanType,
     DateType,
@@ -123,13 +123,15 @@ COLUNAS: dict[str, list[tuple[str, IcebergType]]] = {
     ],
 }
 
-# Particionamento pelo mês do evento: a AIH que chega atrasada cai na partição
-# do mês em que o paciente saiu, e o reprocessamento da janela de maturidade
-# (3 meses) reescreve só essas partições. Tabelas pequenas não são particionadas
-# para não gerar arquivos minúsculos.
-PARTICAO_MENSAL: dict[str, str] = {
+# Particionamento pelo ano do evento (medido em medicoes/e2/formatos_2026-10-19.txt):
+# por mês, as 3,67 milhões de internações viram 72 arquivos de ~1 MB, muito
+# abaixo do tamanho recomendado para Parquet/Iceberg; por ano, 7 arquivos de ~9 MB,
+# com o mesmo tempo na consulta pontual. A AIH atrasada cai no ano em que o
+# paciente saiu, e o reprocessamento da janela apaga e regrava só as linhas dos
+# últimos meses (o Iceberg reescreve apenas os arquivos afetados). As demais
+# tabelas são pequenas (leito: ~2 MB em Parquet) e ficam sem partição.
+PARTICAO_ANUAL: dict[str, str] = {
     "internacao": "dt_saida",
-    "leito": "competencia",
 }
 
 
@@ -147,14 +149,14 @@ def definicao(nome: str) -> DefinicaoTabela:
     ]
     schema = Schema(*campos)
     particao = PartitionSpec()
-    if nome in PARTICAO_MENSAL:
-        coluna = PARTICAO_MENSAL[nome]
+    if nome in PARTICAO_ANUAL:
+        coluna = PARTICAO_ANUAL[nome]
         particao = PartitionSpec(
             PartitionField(
                 source_id=schema.find_field(coluna).field_id,
                 field_id=1000,
-                transform=MonthTransform(),
-                name=f"{coluna}_mes",
+                transform=YearTransform(),
+                name=f"{coluna}_ano",
             )
         )
     return DefinicaoTabela(nome, schema, particao)
