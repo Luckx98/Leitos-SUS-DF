@@ -161,3 +161,18 @@ def definicao(nome: str) -> DefinicaoTabela:
 
 
 TABELAS = tuple(COLUNAS)
+
+
+# Maturidade dos meses de evento (dado atrasado). Não é espelho da origem: é
+# calculada no lakehouse a cada reprocessamento da janela (lakehouse/janela.py).
+MESES_DE_MATURIDADE = 3  # 99,5% das AIHs chegam em até 3 competências (medido na E1)
+
+ESQUEMA_MATURIDADE = Schema(
+    NestedField(1, "uf", StringType(), required=False),
+    NestedField(2, "mes_saida", DateType(), required=False),
+    NestedField(3, "internacoes", LongType(), required=False),
+    NestedField(4, "competencia_referencia", DateType(), required=False),
+    NestedField(5, "meses_observados", IntegerType(), required=False),
+    NestedField(6, "status", StringType(), required=False),
+    NestedField(7, "calculado_em", TimestamptzType(), required=False),
+)

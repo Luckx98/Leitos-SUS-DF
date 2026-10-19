@@ -147,7 +147,13 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     config = ConfigLakehouse.do_ambiente()
     enviar_brutos(config)
-    exportar(config)
+    resultados = exportar(config)
+    # Competência nova do SIH: as AIHs atrasadas caíram em partições antigas;
+    # reprocessa a janela de maturidade e reclassifica os meses.
+    if any(r["tabela"] == "internacao" and r["linhas"] for r in resultados):
+        from lakehouse.janela import reprocessar_janela
+        from lakehouse.esquemas import MESES_DE_MATURIDADE
+        reprocessar_janela(config, MESES_DE_MATURIDADE)
     return 0
 
 

@@ -16,7 +16,7 @@ from sqlalchemy.engine import make_url
 
 from lakehouse.catalogo import abrir_catalogo, sistema_de_arquivos
 from lakehouse.config import BUCKET_BRUTO, BUCKET_LAKEHOUSE, ConfigLakehouse
-from lakehouse.esquemas import NAMESPACES, TABELAS, definicao
+from lakehouse.esquemas import ESQUEMA_MATURIDADE, NAMESPACES, TABELAS, definicao
 
 log = logging.getLogger("lakehouse")
 
@@ -63,7 +63,9 @@ def criar_tabelas(config: ConfigLakehouse) -> None:
                     "format-version": "2",
                 },
             )
-    log.info("tabelas: %s", ", ".join(f"{n}.{t}" for n in NAMESPACES for t in TABELAS))
+    catalogo.create_table_if_not_exists("lote.maturidade", schema=ESQUEMA_MATURIDADE,
+                                        properties={"format-version": "2"})
+    log.info("tabelas: %s, lote.maturidade", ", ".join(f"{n}.{t}" for n in NAMESPACES for t in TABELAS))
 
 
 def main() -> int:

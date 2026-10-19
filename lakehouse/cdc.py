@@ -16,7 +16,8 @@ Resultado: efetivamente exatamente uma vez no Iceberg, por tabela.
 
 Variáveis: KAFKA_BOOTSTRAP, CDC_LINHAS_POR_LOTE, CDC_SEGUNDOS_POR_LOTE,
 CDC_SAIR_OCIOSO_S (encerra depois de N segundos sem mensagens; 0 = nunca),
-CDC_DEDUP (1 = deduplica pela chave; 0 = desliga, só para a demonstração).
+CDC_DEDUP (1 = deduplica pela chave; 0 = desliga, só para a demonstração),
+CDC_DO_INICIO (1 = relê os tópicos desde o início, ignorando o offset do Iceberg).
 """
 
 from __future__ import annotations
@@ -129,9 +130,10 @@ class Estatistica:
 
 
 class ConsumidorCdc:
-    def __init__(self, config: ConfigLakehouse, dedup: bool = True) -> None:
+    def __init__(self, config: ConfigLakehouse, dedup: bool = True, do_inicio: bool = False) -> None:
         self.catalogo = abrir_catalogo(config)
         self.dedup = dedup
+        self.do_inicio = do_inicio  # ignora o offset do Iceberg e relê tudo (demonstração)
         self.tabelas = {t: self.catalogo.load_table(f"cdc.{t}") for t in TABELAS}
         self.esquemas = {t: tab.schema().as_arrow() for t, tab in self.tabelas.items()}
         self.estatistica = {t: Estatistica() for t in TABELAS}
@@ -148,7 +150,7 @@ class ConsumidorCdc:
         particoes = []
         for tabela, iceberg in self.tabelas.items():
             topico = PREFIXO_TOPICO + tabela
-            offset = offset_gravado(iceberg, topico)
+            offset = None if self.do_inicio else offset_gravado(iceberg, topico)
             particoes.append(TopicPartition(topico, 0, OFFSET_BEGINNING if offset is None else offset))
             log.info("%s: retomando do offset %s", topico, "inicial" if offset is None else offset)
         self.kafka.assign(particoes)
@@ -204,7 +206,8 @@ class ConsumidorCdc:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    consumidor = ConsumidorCdc(ConfigLakehouse.do_ambiente(), dedup=os.environ.get("CDC_DEDUP", "1") == "1")
+    consumidor = ConsumidorCdc(ConfigLakehouse.do_ambiente(), dedup=os.environ.get("CDC_DEDUP", "1") == "1",
+                               do_inicio=os.environ.get("CDC_DO_INICIO", "0") == "1")
     consumidor.executar(
         linhas_por_lote=int(os.environ.get("CDC_LINHAS_POR_LOTE", "50000")),
         segundos_por_lote=float(os.environ.get("CDC_SEGUNDOS_POR_LOTE", "5")),
