@@ -1,0 +1,10 @@
+transformacao/target
+transformacao/logs
+transformacao/dbt_packages
+**/__pycache__
+**/*.pyc
+.git
+.venv
+.venv-docs
+medicoes
+var

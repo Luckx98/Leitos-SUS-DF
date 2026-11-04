@@ -60,6 +60,13 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
+# Camada analítica (E3): artefatos locais do dbt, do DuckDB e do Dagster
+transformacao/target/
+transformacao/logs/
+transformacao/dbt_packages/
+*.duckdb
+var/
+
 # Coverage
 htmlcov/
 .coverage
