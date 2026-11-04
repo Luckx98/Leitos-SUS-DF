@@ -1,0 +1,16 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Snapshot atual de lote.* e cópia das tabelas de referência da origem.
+    schema: bronze
+    tables:
+      - name: carga
+      - name: internacao
+      - name: leito
+      - name: estabelecimento_versao
+      - name: maturidade
+      - name: municipio
+      - name: cid
+      - name: regiao_saude
+      - name: estabelecimento_regiao_df

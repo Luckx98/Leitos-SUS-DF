@@ -1,0 +1,11 @@
+leitos_analitico:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', '/app/var/analitico.duckdb') }}"
+      schema: main
+      threads: 2
+      extensions:
+        - httpfs
+        - iceberg
