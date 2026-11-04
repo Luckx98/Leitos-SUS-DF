@@ -64,6 +64,7 @@ Thumbs.db
 transformacao/target/
 transformacao/logs/
 transformacao/dbt_packages/
+transformacao/.user.yml
 *.duckdb
 var/
 
