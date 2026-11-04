@@ -138,6 +138,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-leitos}:${POSTGRES_PASSWORD:-leitos}@postgres:5432/${POSTGRES_DB:-leitos}
       CATALOGO_URL: postgresql+psycopg://${POSTGRES_USER:-leitos}:${POSTGRES_PASSWORD:-leitos}@postgres:5432/iceberg
       S3_ENDPOINT: http://seaweedfs:8333
+      S3_HOST: seaweedfs:8333
       S3_ACCESS_KEY: leitos
       S3_SECRET_KEY: leitos-segredo
     depends_on:

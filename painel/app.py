@@ -59,6 +59,7 @@ st.caption(
     "Em quais semanas a ocupação estimada (paciente-dia ÷ leitos SUS × 7) passou de 85% "
     "em cada região de saúde, e quais capítulos da CID concentravam esse excesso."
 )
+st.caption("Semanas e capítulos vêm do ouro, o schema consumo. Não é a consulta na origem.")
 
 uf_nome = st.radio("UF", ["Distrito Federal", "Goiás"], horizontal=True)
 uf = "53" if uf_nome.startswith("Distrito") else "52"

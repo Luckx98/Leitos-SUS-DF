@@ -11,7 +11,7 @@ select
     cast(i.valor_total as decimal(12, 2)) as valor_total,
     trim(i.municipio_residencia) as municipio_residencia,
     cast(i._ingerido_em as timestamptz) as _ingerido_em
-from {{ source('bronze', 'internacao') }} as i
+from {{ source('espelho', 'internacao') }} as i
 inner join {{ ref('stg_carga_vigente') }} as c
     on c.id_carga = i.id_carga
    and c.fonte = 'SIH_RD'

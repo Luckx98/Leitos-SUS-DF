@@ -1,9 +1,9 @@
 version: 2
 
 sources:
-  - name: bronze
-    description: Snapshot atual de lote.* e cópia das tabelas de referência da origem.
-    schema: bronze
+  - name: espelho
+    description: Ponte de leitura do snapshot atual de lote.* e cópia das referências da origem. Não é o bronze.
+    schema: espelho
     tables:
       - name: carga
       - name: internacao

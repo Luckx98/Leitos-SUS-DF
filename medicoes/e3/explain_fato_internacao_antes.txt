@@ -1,0 +1,24 @@
+-- 2026-11-04 17:50
+-- SELECT capitulo_cid, count(*) AS internacoes, sum(dias_permanencia) AS paciente_dias
+            FROM consumo.fato_internacao
+            WHERE cnes = '0010480'
+              AND dt_saida >= DATE '2021-01-01' AND dt_saida < DATE '2026-01-01'
+            GROUP BY capitulo_cid
+            ORDER BY paciente_dias DESC
+
+Sort  (cost=782.54..782.59 rows=21 width=19) (actual time=1.961..1.962 rows=20 loops=1)
+  Sort Key: (sum(dias_permanencia)) DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=392
+  ->  HashAggregate  (cost=781.87..782.08 rows=21 width=19) (actual time=1.949..1.951 rows=20 loops=1)
+        Group Key: capitulo_cid
+        Batches: 1  Memory Usage: 24kB
+        Buffers: shared hit=392
+        ->  Seq Scan on fato_internacao  (cost=0.00..759.41 rows=2994 width=7) (actual time=0.015..1.523 rows=2994 loops=1)
+              Filter: ((dt_saida >= '2021-01-01'::date) AND (dt_saida < '2026-01-01'::date) AND ((cnes)::text = '0010480'::text))
+              Rows Removed by Filter: 18001
+              Buffers: shared hit=392
+Planning:
+  Buffers: shared hit=15
+Planning Time: 0.089 ms
+Execution Time: 1.978 ms

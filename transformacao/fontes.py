@@ -3,7 +3,7 @@
 O catálogo Iceberg é SQL. O DuckDB lê cada tabela pelo metadata_location do
 snapshot corrente (iceberg_scan), com o S3 do SeaweedFS. As referências
 (CID, município, região e a tabela curada do DF) não foram para o lakehouse
-na E2: são copiadas do Postgres para o schema bronze.
+na E2: são copiadas do Postgres para o schema espelho.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def _literal(valor: str) -> str:
 def _tabela_vazia(con: duckdb.DuckDBPyConnection, nome: str, esquema: pa.Schema) -> None:
     vazio = pa.table({campo.name: pa.array([], type=campo.type) for campo in esquema})
     con.register(f"vazio_{nome}", vazio)
-    con.execute(f"CREATE OR REPLACE TABLE bronze.{nome} AS SELECT * FROM vazio_{nome}")
+    con.execute(f"CREATE OR REPLACE TABLE espelho.{nome} AS SELECT * FROM vazio_{nome}")
     con.unregister(f"vazio_{nome}")
 
 
@@ -60,26 +60,26 @@ def registrar() -> None:
     catalogo = abrir_catalogo(config)
     con = duckdb.connect(str(caminho_duckdb()))
     configurar_s3(con)
-    con.execute("CREATE SCHEMA IF NOT EXISTS bronze")
+    con.execute("CREATE SCHEMA IF NOT EXISTS espelho")
     for nome in TABELAS_LOTE:
         tabela = catalogo.load_table(f"lote.{nome}")
         if tabela.current_snapshot() is None:
-            log.info("lote.%s sem snapshot; bronze.%s fica vazia", nome, nome)
+            log.info("lote.%s sem snapshot; espelho.%s fica vazia", nome, nome)
             _tabela_vazia(con, nome, tabela.schema().as_arrow())
             continue
         local = tabela.metadata_location
         con.execute(
-            f"CREATE OR REPLACE VIEW bronze.{nome} AS SELECT * FROM iceberg_scan({_literal(local)})"
+            f"CREATE OR REPLACE VIEW espelho.{nome} AS SELECT * FROM iceberg_scan({_literal(local)})"
         )
-        linhas = con.execute(f"SELECT count(*) FROM bronze.{nome}").fetchone()[0]
-        log.info("bronze.%-24s %10d linhas  %s", nome, linhas, local)
+        linhas = con.execute(f"SELECT count(*) FROM espelho.{nome}").fetchone()[0]
+        log.info("espelho.%-24s %10d linhas  %s", nome, linhas, local)
 
     _carregar(con, "postgres")
     con.execute(f"ATTACH {_literal(config.database_url)} AS origem (TYPE postgres, READ_ONLY)")
     for nome in TABELAS_ORIGEM:
-        con.execute(f"CREATE OR REPLACE TABLE bronze.{nome} AS SELECT * FROM origem.public.{nome}")
-        linhas = con.execute(f"SELECT count(*) FROM bronze.{nome}").fetchone()[0]
-        log.info("bronze.%-24s %10d linhas  (origem)", nome, linhas)
+        con.execute(f"CREATE OR REPLACE TABLE espelho.{nome} AS SELECT * FROM origem.public.{nome}")
+        linhas = con.execute(f"SELECT count(*) FROM espelho.{nome}").fetchone()[0]
+        log.info("espelho.%-24s %10d linhas  (origem)", nome, linhas)
     con.execute("DETACH origem")
     con.close()
 

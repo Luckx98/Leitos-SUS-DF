@@ -11,7 +11,7 @@ select
     vinculo_sus,
     atende_internacao,
     atende_urgencia
-from {{ source('bronze', 'estabelecimento_versao') }}
+from {{ source('espelho', 'estabelecimento_versao') }}
 qualify row_number() over (
     partition by trim(cnes), competencia_inicio
     order by id_carga desc

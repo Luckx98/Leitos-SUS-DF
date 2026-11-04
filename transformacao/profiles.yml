@@ -5,7 +5,16 @@ leitos_analitico:
       type: duckdb
       path: "{{ env_var('DUCKDB_PATH', '/app/var/analitico.duckdb') }}"
       schema: main
-      threads: 2
+      # Uma conexão: o SET do on-run-start não vale para as outras threads,
+      # e sem o endpoint o Iceberg ia para a AWS (403).
+      threads: 1
       extensions:
         - httpfs
         - iceberg
+      settings:
+        s3_endpoint: "{{ env_var('S3_HOST', 'seaweedfs:8333') }}"
+        s3_access_key_id: "{{ env_var('S3_ACCESS_KEY', 'leitos') }}"
+        s3_secret_access_key: "{{ env_var('S3_SECRET_KEY', 'leitos-segredo') }}"
+        s3_use_ssl: "false"
+        s3_url_style: "path"
+        s3_region: "us-east-1"

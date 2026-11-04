@@ -2,7 +2,7 @@
 
 A E3 responde à pergunta declarada na E1. O lakehouse da E2 guarda o dado; aqui ele vira um modelo dimensional, testado e reconstruído sozinho.
 
-A fonte analítica é `lote.*`. O [ADR 0002](../adr/0002-lote-incremental-e-cdc-sobre-iceberg.md) deixou o lote como o caminho que reprocessa a janela de dado atrasado. O perfil `e3` não sobe Redpanda, Debezium nem o consumidor de CDC.
+A fonte analítica é `lote.*` (bronze). A prata fica no dbt, sem publicação; o ouro é o schema `consumo`. O mapa está em [Transformações](02-transformacoes.md). O [ADR 0002](../adr/0002-lote-incremental-e-cdc-sobre-iceberg.md) deixou o lote como o caminho que reprocessa a janela de dado atrasado. O perfil `e3` não sobe Redpanda, Debezium nem o consumidor de CDC.
 
 ## Onde está cada requisito
 

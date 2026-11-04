@@ -3,4 +3,4 @@ select
     trim(uf) as uf,
     cast(mes_saida as date) as mes_saida,
     status
-from {{ source('bronze', 'maturidade') }}
+from {{ source('espelho', 'maturidade') }}

@@ -6,7 +6,7 @@ select
     trim(uf) as uf,
     competencia,
     status
-from {{ source('bronze', 'carga') }}
+from {{ source('espelho', 'carga') }}
 where status = 'concluida'
   and competencia is not null
 qualify row_number() over (
