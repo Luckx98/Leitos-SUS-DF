@@ -1,0 +1,25 @@
+# Grãos da ocupação semanal — 2026-11-04
+# Máquina: DuckDB 1.5.6 local. Recorte de verificação do SQL (20 AIHs sintéticas,
+# um CNES, janeiro de 2025). Não é a amostra do repositório nem a carga completa.
+# A carga de um ano na origem já foi medida na E1: a L4 custa 6,4 s
+# (docs/e1/05-caracterizacao-da-carga.md). O perfil e3 reescreve este arquivo
+# com os tempos do lakehouse e da opção nula quando `python -m transformacao` roda.
+
+aih=20
+paciente_dia=80
+semanas=4
+leitura_agregando_paciente_dia_ms=1.29
+leitura_mart_semanal_ms=0.14
+
+# SCD2 no mesmo recorte: gestão M vigente de 2025-01-01 a 2025-02-28,
+# gestão E vigente de 2025-03-01 em diante. A internação de janeiro usa M.
+# Semana de 2025-01-06: 80 paciente-dias, 10 leitos SUS, ocupação 1,1429, acima de 85%.
+# Capítulo 10 concentra os 80 paciente-dias (parcela 1).
+
+# dbt build completo nesse recorte: PASS=77 WARN=0 ERROR=0.
+# dbt build só do ano 2025: saiu com código 0.
+
+# Opção nula (sql/e3/opcao_nula.sql) e EXPLAIN (ANALYZE, BUFFERS):
+# exigem o Postgres da origem. O socket do Docker não estava no ar nesta sessão
+# (~/.docker/run/docker.sock ausente), então esses tempos não foram medidos aqui.
+# `python -m transformacao` grava medicoes/e3/explain_*.txt e substitui este arquivo.
