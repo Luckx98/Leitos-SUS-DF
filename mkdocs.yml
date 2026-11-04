@@ -46,5 +46,16 @@ nav:
       - Dado atrasado: e2/05-dado-atrasado.md
       - Serialização e compressão: e2/06-serializacao-e-compressao.md
       - ADR 0002: adr/0002-lote-incremental-e-cdc-sobre-iceberg.md
+  - Entrega 3:
+      - Visão da entrega: e3/index.md
+      - Modelo dimensional: e3/01-modelo-dimensional.md
+      - Transformações: e3/02-transformacoes.md
+      - Testes: e3/03-testes.md
+      - Orquestração: e3/04-orquestracao.md
+      - Consulta otimizada: e3/05-consulta-otimizada.md
+      - Freshness e SLA: e3/06-freshness-e-sla.md
+      - Painel: e3/07-painel.md
+      - ADR 0003: adr/0003-estrela-semanal-sobre-dbt.md
   - Diário:
       - Semana de 05/10: diario/2026-10-05.md
+      - 04/11 — camada analítica: diario/2026-11-04.md

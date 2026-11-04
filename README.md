@@ -128,6 +128,22 @@ Demonstrações prontas (com o perfil `e2` no ar):
 | `scripts/compactar_cdc.sh` | junta os arquivos pequenos de `cdc.*` (precisa parar o consumidor) |
 | `scripts/medir_ingestao.sh [COMPETENCIA]` | custo do lote, do snapshot do CDC e de uma competência nova, com memória e CPU por fase |
 
+### Perfil e3 — camada analítica
+
+O perfil `e3` sobe a origem, o lote, a transformação dbt, a publicação no schema `consumo`, o Dagster (porta 3000) e o painel (porta 8501). Não sobe Redpanda, Debezium nem o consumidor de CDC: a máquina de referência não comporta os dois ao mesmo tempo. Decisão e medição: [ADR 0003](docs/adr/0003-estrela-semanal-sobre-dbt.md).
+
+```bash
+docker compose --profile e3 up --build
+```
+
+Na amostra (DF, 01/2025) não precisa de rede. `MODO=completo` é o que produz a série de 2021 a 2025. O painel fica em <http://localhost:8501>.
+
+| Script | O que mostra |
+| --- | --- |
+| `scripts/demo_retry.sh` | a publicação falha de propósito e a tentativa seguinte conclui |
+| `scripts/demo_backfill.sh` | esvazia o consumo e preenche cada ano presente, sem apagar os outros |
+| `scripts/opcao_nula.sh` | a mesma pergunta calculada direto na origem, sem dbt |
+
 ### Recomeçar do zero
 
 ```bash
@@ -155,6 +171,9 @@ A documentação completa está no [GitHub Pages do Leitos SUS-DF](https://luckx
 | Dado atrasado | [docs/e2/05-dado-atrasado.md](docs/e2/05-dado-atrasado.md) |
 | Serialização e compressão | [docs/e2/06-serializacao-e-compressao.md](docs/e2/06-serializacao-e-compressao.md) |
 | ADR 0002 — lote e CDC sobre Iceberg | [docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md](docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md) |
+| Visão da E3 — camada analítica | [docs/e3/index.md](docs/e3/index.md) |
+| ADR 0003 — estrela semanal sobre dbt | [docs/adr/0003-estrela-semanal-sobre-dbt.md](docs/adr/0003-estrela-semanal-sobre-dbt.md) |
+| Release da E3 | [RELEASE-e3.md](RELEASE-e3.md) |
 | Uso de IA | [AI-USAGE.md](AI-USAGE.md) |
 
 Para visualizar o site localmente:
@@ -180,9 +199,14 @@ sql/caracterizacao/ medição de volume, escrita, leitura e defasagem
 sql/historico/      consultas que dependem do histórico da origem
 sql/adr/            medição das alternativas do ADR 0001
 lakehouse/          lakehouse Iceberg: lote incremental, consumidor de CDC, janela, compactação
+transformacao/      projeto dbt: staging, intermediate, marts e publicação no schema consumo
+orquestracao/       Dagster: agenda diária, retry e backfill por ano
+painel/             Streamlit da pergunta de ocupação
 infra/              configuração do Debezium e do SeaweedFS
-scripts/            demonstrações e medições do perfil e2 (CDC, semântica, ingestão)
+scripts/            demonstrações e medições dos perfis e2 e e3
+sql/e3/             opção nula (SQL na origem) e índices do schema consumo
 medicoes/e2/        resultados medidos do perfil e2 (formatos, ingestão, Iceberg x Delta, semântica)
+medicoes/e3/        grãos, planos e demonstrações da camada analítica
 docs/               documentação publicada pelo MkDocs
 ```
 
