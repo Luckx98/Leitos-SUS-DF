@@ -27,3 +27,6 @@ dagster-webserver==1.13.28
 streamlit==1.50.0
 # dbt 1.11 exige protobuf 6; o Dagster aceita até a 7. Sem o teto, o resolver sobe para a 7 e o dbt quebra.
 protobuf>=6,<7
+
+# ── Experimento vetorial: embedding local multilíngue, sem API ──
+fastembed==0.9.1

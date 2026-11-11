@@ -1,10 +1,11 @@
 name: leitos
 
 services:
-  # ── PostgreSQL 16 (origem OLTP) ───────────────────────────────────
+  # ── PostgreSQL 16 (origem OLTP) + pgvector ───────────────────────
   # wal_level=logical desde a E1 para o CDC (Debezium) da E2.
+  # A imagem pgvector é o mesmo Postgres 16, com a extensão do experimento.
   postgres:
-    image: docker.io/library/postgres:16
+    image: docker.io/pgvector/pgvector:pg16
     container_name: leitos_postgres
     restart: unless-stopped
     command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4"]
