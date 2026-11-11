@@ -1,0 +1,23 @@
+-- 2026-11-11 17:07
+-- SELECT semana, ocupacao, paciente_dias, leitos_sus
+            FROM consumo.ocupacao_semana_regiao
+            WHERE cod_regiao_saude = '52011' AND ano = 2026 AND ocupacao >= 0.85
+            ORDER BY semana
+
+Sort  (cost=87.07..87.08 rows=1 width=28) (actual time=0.151..0.151 rows=0 loops=1)
+  Sort Key: semana
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=19 read=2
+  ->  Bitmap Heap Scan on ocupacao_semana_regiao  (cost=4.67..87.06 rows=1 width=28) (actual time=0.145..0.145 rows=0 loops=1)
+        Recheck Cond: (((cod_regiao_saude)::text = '52011'::text) AND (ano = 2026))
+        Filter: (ocupacao >= '0.85'::double precision)
+        Rows Removed by Filter: 39
+        Heap Blocks: exact=16
+        Buffers: shared hit=19 read=2
+        ->  Bitmap Index Scan on idx_ocupacao_regiao_ano  (cost=0.00..4.67 rows=39 width=0) (actual time=0.063..0.063 rows=39 loops=1)
+              Index Cond: (((cod_regiao_saude)::text = '52011'::text) AND (ano = 2026))
+              Buffers: shared hit=3 read=2
+Planning:
+  Buffers: shared hit=28 read=1
+Planning Time: 0.475 ms
+Execution Time: 0.171 ms

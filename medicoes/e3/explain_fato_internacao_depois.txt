@@ -1,0 +1,42 @@
+-- 2026-11-11 17:07
+-- SELECT capitulo_cid, count(*) AS internacoes, sum(dias_permanencia) AS paciente_dias
+            FROM consumo.fato_internacao
+            WHERE cnes = '0010456'
+              AND dt_saida >= DATE '2021-01-01' AND dt_saida < DATE '2026-01-01'
+            GROUP BY capitulo_cid
+            ORDER BY paciente_dias DESC
+
+Sort  (cost=89128.29..89128.34 rows=21 width=19) (actual time=372.559..375.740 rows=21 loops=1)
+  Sort Key: (sum(dias_permanencia)) DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=368 read=10116
+  ->  Finalize GroupAggregate  (cost=89122.40..89127.83 rows=21 width=19) (actual time=372.512..375.714 rows=21 loops=1)
+        Group Key: capitulo_cid
+        Buffers: shared hit=368 read=10116
+        ->  Gather Merge  (cost=89122.40..89127.30 rows=42 width=19) (actual time=372.492..375.690 rows=61 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=368 read=10116
+              ->  Sort  (cost=88122.38..88122.43 rows=21 width=19) (actual time=368.094..368.097 rows=20 loops=3)
+                    Sort Key: capitulo_cid
+                    Sort Method: quicksort  Memory: 25kB
+                    Buffers: shared hit=368 read=10116
+                    Worker 0:  Sort Method: quicksort  Memory: 25kB
+                    Worker 1:  Sort Method: quicksort  Memory: 25kB
+                    ->  Partial HashAggregate  (cost=88121.71..88121.92 rows=21 width=19) (actual time=368.045..368.051 rows=20 loops=3)
+                          Group Key: capitulo_cid
+                          Batches: 1  Memory Usage: 24kB
+                          Buffers: shared hit=352 read=10116
+                          Worker 0:  Batches: 1  Memory Usage: 24kB
+                          Worker 1:  Batches: 1  Memory Usage: 24kB
+                          ->  Parallel Bitmap Heap Scan on fato_internacao  (cost=4310.50..87708.46 rows=55100 width=7) (actual time=60.317..355.016 rows=44057 loops=3)
+                                Recheck Cond: (((cnes)::text = '0010456'::text) AND (dt_saida >= '2021-01-01'::date) AND (dt_saida < '2026-01-01'::date))
+                                Heap Blocks: exact=3317
+                                Buffers: shared hit=352 read=10116
+                                ->  Bitmap Index Scan on idx_fato_internacao_cnes_saida  (cost=0.00..4277.44 rows=132241 width=0) (actual time=62.200..62.200 rows=132171 loops=1)
+                                      Index Cond: (((cnes)::text = '0010456'::text) AND (dt_saida >= '2021-01-01'::date) AND (dt_saida < '2026-01-01'::date))
+                                      Buffers: shared read=654
+Planning:
+  Buffers: shared hit=30 read=1
+Planning Time: 0.530 ms
+Execution Time: 375.967 ms
