@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 
-from orquestracao.definicoes import republicar
+from orquestracao.definicoes import defs
 from transformacao.caminhos import caminho_duckdb, pasta_medicoes
 
 
@@ -22,6 +22,9 @@ def _eventos(resultado) -> list[str]:
 def main() -> int:
     flag = caminho_duckdb().parent / "falhar_publicacao"
     flag.write_text("derrubar", encoding="utf-8")
+    # define_asset_job devolve um job ainda não resolvido; o execute_in_process
+    # está no JobDefinition que o Definitions monta com o grafo dos assets.
+    republicar = defs.resolve_job_def("republicar")
     resultado = republicar.execute_in_process(raise_on_error=False)
     linhas = [f"# Retry da publicação — {datetime.now():%Y-%m-%d %H:%M}", "", "tentativa 1"]
     linhas.extend(_eventos(resultado))
