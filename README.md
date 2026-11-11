@@ -14,6 +14,9 @@ Plataforma de dados do Grupo 01 de Banco de Dados 2 (UnB/FCTE, 2026/2). Ela cruz
 
 ```text
 FONTES ──► MIGRAÇÕES ──► CARGA ──► BANCO DE ORIGEM ──► LOTE e CDC ──► LAKEHOUSE (ICEBERG)
+                                                              │
+                                                              ▼
+                                                    dbt (estrela semanal) ──► consumo ──► painel
 ```
 
 (`LOTE` e `CDC` são dois caminhos paralelos, não um passo único — ver o diagrama em [docs/index.md](docs/index.md) ou no [site publicado](https://luckx98.github.io/Leitos-SUS-DF/).)
@@ -25,29 +28,29 @@ FONTES ──► MIGRAÇÕES ──► CARGA ──► BANCO DE ORIGEM ──►
 - **LOTE:** exportação incremental, por marca d'água de carga, com reprocessamento da janela de dado atrasado. O caminho mais barato; cobre a carga inicial e o reprocessamento em massa.
 - **CDC:** Debezium lê o WAL lógico e publica no Redpanda; um consumidor Python grava no Iceberg com latência de segundos.
 - **LAKEHOUSE (ICEBERG):** os dois caminhos escrevem o mesmo esquema, em namespaces separados (`lote.*` e `cdc.*`), para poderem ser reconciliados e comparados. Decisão e medições no [ADR 0002](docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md).
+- **CAMADA ANALÍTICA:** o dbt lê `lote.*`, monta a estrela da semana e publica no schema `consumo`. O Dagster agenda, repete a publicação que falha e preenche um ano. O painel lê só `consumo`. O experimento vetorial guarda a frase desse mart no pgvector; o cosseno não substitui o limiar de 85%. Decisão no [ADR 0003](docs/adr/0003-estrela-semanal-sobre-dbt.md) e no [ADR 0004](docs/adr/0004-cosseno-nao-e-o-limiar.md).
 
 ## Componentes
 
-| Componente | Responsabilidade |
-| --- | --- |
-| PostgreSQL 16 | banco de origem insert-only, com `wal_level=logical` |
-| Alembic | migrações versionadas em `alembic/versions/` |
-| Loader (Python 3.11) | download do FTP do DATASUS, validação e carga em `loader/` |
-| Docker Compose | sobe banco, migrações e carga com um comando |
-| MkDocs Material | documentação publicada no GitHub Pages |
+| Componente               | Responsabilidade                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| PostgreSQL 16 + pgvector | banco de origem insert-only, com `wal_level=logical`; a extensão `vector` guarda o experimento semântico |
+| Alembic                  | migrações versionadas em `alembic/versions/`                                                             |
+| Loader (Python 3.11)     | download do FTP do DATASUS, validação e carga em `loader/`                                               |
+| Docker Compose           | sobe banco, migrações e carga com um comando                                                             |
+| MkDocs Material          | documentação publicada no GitHub Pages                                                                   |
 
 ## Equipe
 
-| Nome | Matrícula |
-| --- | --- |
-| Lucas Macedo Barboza | 190091720 |
-| Caetano Santos Lucio | 180144979 |
-| Cairo Florenço | 222014975 |
-| Leonardo Sobrinho | 200022199 |
+| Nome                              | Matrícula |
+| --------------------------------- | --------- |
+| Lucas Macedo Barboza              | 190091720 |
+| Caetano Santos Lucio              | 180144979 |
+| Cairo Florenço                    | 222014975 |
+| Leonardo Sobrinho                 | 200022199 |
 | Carlos Eduardo Mendes de Mesquita | 190085584 |
-| Bruna de Lima | 211041105 |
-| Lais Cecília | 211029512 |
-
+| Bruna de Lima                     | 211041105 |
+| Lais Cecília                      | 211029512 |
 
 ## Executar o projeto
 
@@ -67,10 +70,10 @@ O Compose sobe três serviços, nesta ordem:
 
 ### Modos de carga
 
-| Modo | O que carrega | Rede | Tempo aproximado |
-| --- | --- | --- | --- |
-| `amostra` (padrão) | Recorte versionado em `dados/amostra/` (DF, 01/2025) | Não precisa | < 1 min |
-| `completo` | DF e GO de 01/2021 até a última competência publicada, baixados do FTP do DATASUS | Precisa | ~15 min, ~330 MB baixados |
+| Modo               | O que carrega                                                                     | Rede        | Tempo aproximado          |
+| ------------------ | --------------------------------------------------------------------------------- | ----------- | ------------------------- |
+| `amostra` (padrão) | Recorte versionado em `dados/amostra/` (DF, 01/2025)                              | Não precisa | < 1 min                   |
+| `completo`         | DF e GO de 01/2021 até a última competência publicada, baixados do FTP do DATASUS | Precisa     | ~15 min, ~330 MB baixados |
 
 ```bash
 MODO=completo docker compose up --build -d
@@ -121,16 +124,16 @@ docker compose run --rm --no-deps lote python -m lakehouse.reconciliar
 
 Demonstrações prontas (com o perfil `e2` no ar):
 
-| Script | O que mostra |
-| --- | --- |
-| `scripts/demo_cdc.sh [UF] [COMPETENCIA]` | uma competência nova na origem chega a `cdc.internacao` sem passo manual |
-| `scripts/demo_semantica.sh` | releitura do CDC com e sem deduplicação, e viagem no tempo no Iceberg |
-| `scripts/compactar_cdc.sh` | junta os arquivos pequenos de `cdc.*` (precisa parar o consumidor) |
+| Script                                    | O que mostra                                                                            |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `scripts/demo_cdc.sh [UF] [COMPETENCIA]`  | uma competência nova na origem chega a `cdc.internacao` sem passo manual                |
+| `scripts/demo_semantica.sh`               | releitura do CDC com e sem deduplicação, e viagem no tempo no Iceberg                   |
+| `scripts/compactar_cdc.sh`                | junta os arquivos pequenos de `cdc.*` (precisa parar o consumidor)                      |
 | `scripts/medir_ingestao.sh [COMPETENCIA]` | custo do lote, do snapshot do CDC e de uma competência nova, com memória e CPU por fase |
 
 ### Perfil e3 — camada analítica
 
-O perfil `e3` sobe a origem, o lote, a transformação dbt, a publicação no schema `consumo`, o Dagster (porta 3000) e o painel (porta 8501). Não sobe Redpanda, Debezium nem o consumidor de CDC: a máquina de referência não comporta os dois ao mesmo tempo. Decisão e medição: [ADR 0003](docs/adr/0003-estrela-semanal-sobre-dbt.md).
+O perfil `e3` sobe a origem, o lote, a transformação dbt, a publicação no schema `consumo`, o Dagster (porta 3000) e o painel (porta 8501). Não sobe Redpanda, Debezium nem o consumidor de CDC: a máquina de referência não comporta os dois ao mesmo tempo. Na série DF e GO o `dbt build` levou 21,4 s e a leitura das semanas acima de 85% levou 41,8 ms; a mesma conta na origem levou 55,5 s. Decisão e medição: [ADR 0003](docs/adr/0003-estrela-semanal-sobre-dbt.md).
 
 ```bash
 docker compose --profile e3 up --build
@@ -138,11 +141,12 @@ docker compose --profile e3 up --build
 
 Na amostra (DF, 01/2025) não precisa de rede. `MODO=completo` é o que produz a série de 2021 a 2025. O painel fica em <http://localhost:8501>.
 
-| Script | O que mostra |
-| --- | --- |
-| `scripts/demo_retry.sh` | a publicação falha de propósito e a tentativa seguinte conclui |
+| Script                     | O que mostra                                                         |
+| -------------------------- | -------------------------------------------------------------------- |
+| `scripts/demo_retry.sh`    | a publicação falha de propósito e a tentativa seguinte conclui       |
 | `scripts/demo_backfill.sh` | esvazia o consumo e preenche cada ano presente, sem apagar os outros |
-| `scripts/opcao_nula.sh` | a mesma pergunta calculada direto na origem, sem dbt |
+| `scripts/opcao_nula.sh`    | a mesma pergunta calculada direto na origem, sem dbt                 |
+| `scripts/demo_vetor.sh`    | compara o cosseno da frase do mart com o limiar de 85%               |
 
 ### Recomeçar do zero
 
@@ -154,27 +158,28 @@ docker compose down -v   # apaga o banco, os arquivos baixados e o lakehouse
 
 A documentação completa está no [GitHub Pages do Leitos SUS-DF](https://luckx98.github.io/Leitos-SUS-DF/).
 
-| Tema | Página |
-| --- | --- |
-| Domínio e pergunta de gestão | [docs/e1/01-dominio-e-pergunta.md](docs/e1/01-dominio-e-pergunta.md) |
-| Esquema e migrações | [docs/e1/02-esquema-e-migracoes.md](docs/e1/02-esquema-e-migracoes.md) |
-| Carga reprodutível | [docs/e1/03-carga-reprodutivel.md](docs/e1/03-carga-reprodutivel.md) |
-| Volume | [docs/e1/04-volume.md](docs/e1/04-volume.md) |
-| Caracterização da carga | [docs/e1/05-caracterizacao-da-carga.md](docs/e1/05-caracterizacao-da-carga.md) |
-| Histórico da origem | [docs/e1/06-historico-da-origem.md](docs/e1/06-historico-da-origem.md) |
-| ADR 0001 — origem insert-only | [docs/adr/0001-origem-insert-only-versionada-por-competencia.md](docs/adr/0001-origem-insert-only-versionada-por-competencia.md) |
-| Visão da E2 — lakehouse por lote e CDC | [docs/e2/index.md](docs/e2/index.md) |
-| Lote incremental | [docs/e2/01-lote-incremental.md](docs/e2/01-lote-incremental.md) |
-| CDC | [docs/e2/02-cdc.md](docs/e2/02-cdc.md) |
-| Formato aberto | [docs/e2/03-formato-aberto.md](docs/e2/03-formato-aberto.md) |
-| Semântica de entrega | [docs/e2/04-semantica-de-entrega.md](docs/e2/04-semantica-de-entrega.md) |
-| Dado atrasado | [docs/e2/05-dado-atrasado.md](docs/e2/05-dado-atrasado.md) |
-| Serialização e compressão | [docs/e2/06-serializacao-e-compressao.md](docs/e2/06-serializacao-e-compressao.md) |
-| ADR 0002 — lote e CDC sobre Iceberg | [docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md](docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md) |
-| Visão da E3 — camada analítica | [docs/e3/index.md](docs/e3/index.md) |
-| ADR 0003 — estrela semanal sobre dbt | [docs/adr/0003-estrela-semanal-sobre-dbt.md](docs/adr/0003-estrela-semanal-sobre-dbt.md) |
-| Release da E3 | [RELEASE-e3.md](RELEASE-e3.md) |
-| Uso de IA | [AI-USAGE.md](AI-USAGE.md) |
+| Tema                                   | Página                                                                                                                           |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Domínio e pergunta de gestão           | [docs/e1/01-dominio-e-pergunta.md](docs/e1/01-dominio-e-pergunta.md)                                                             |
+| Esquema e migrações                    | [docs/e1/02-esquema-e-migracoes.md](docs/e1/02-esquema-e-migracoes.md)                                                           |
+| Carga reprodutível                     | [docs/e1/03-carga-reprodutivel.md](docs/e1/03-carga-reprodutivel.md)                                                             |
+| Volume                                 | [docs/e1/04-volume.md](docs/e1/04-volume.md)                                                                                     |
+| Caracterização da carga                | [docs/e1/05-caracterizacao-da-carga.md](docs/e1/05-caracterizacao-da-carga.md)                                                   |
+| Histórico da origem                    | [docs/e1/06-historico-da-origem.md](docs/e1/06-historico-da-origem.md)                                                           |
+| ADR 0001 — origem insert-only          | [docs/adr/0001-origem-insert-only-versionada-por-competencia.md](docs/adr/0001-origem-insert-only-versionada-por-competencia.md) |
+| Visão da E2 — lakehouse por lote e CDC | [docs/e2/index.md](docs/e2/index.md)                                                                                             |
+| Lote incremental                       | [docs/e2/01-lote-incremental.md](docs/e2/01-lote-incremental.md)                                                                 |
+| CDC                                    | [docs/e2/02-cdc.md](docs/e2/02-cdc.md)                                                                                           |
+| Formato aberto                         | [docs/e2/03-formato-aberto.md](docs/e2/03-formato-aberto.md)                                                                     |
+| Semântica de entrega                   | [docs/e2/04-semantica-de-entrega.md](docs/e2/04-semantica-de-entrega.md)                                                         |
+| Dado atrasado                          | [docs/e2/05-dado-atrasado.md](docs/e2/05-dado-atrasado.md)                                                                       |
+| Serialização e compressão              | [docs/e2/06-serializacao-e-compressao.md](docs/e2/06-serializacao-e-compressao.md)                                               |
+| ADR 0002 — lote e CDC sobre Iceberg    | [docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md](docs/adr/0002-lote-incremental-e-cdc-sobre-iceberg.md)                   |
+| Visão da E3 — camada analítica         | [docs/e3/index.md](docs/e3/index.md)                                                                                             |
+| ADR 0003 — estrela semanal sobre dbt   | [docs/adr/0003-estrela-semanal-sobre-dbt.md](docs/adr/0003-estrela-semanal-sobre-dbt.md)                                         |
+| ADR 0004 — cosseno não é o limiar      | [docs/adr/0004-cosseno-nao-e-o-limiar.md](docs/adr/0004-cosseno-nao-e-o-limiar.md)                                               |
+| Release da E3                          | [RELEASE-e3.md](RELEASE-e3.md)                                                                                                   |
+| Uso de IA                              | [AI-USAGE.md](AI-USAGE.md)                                                                                                       |
 
 Para visualizar o site localmente:
 
@@ -202,6 +207,7 @@ lakehouse/          lakehouse Iceberg: lote incremental, consumidor de CDC, jane
 transformacao/      projeto dbt: staging, intermediate, marts e publicação no schema consumo
 orquestracao/       Dagster: agenda diária, retry e backfill por ano
 painel/             Streamlit da pergunta de ocupação
+semantico/          experimento: frase do mart, embedding local e cosseno no pgvector
 infra/              configuração do Debezium e do SeaweedFS
 scripts/            demonstrações e medições dos perfis e2 e e3
 sql/e3/             opção nula (SQL na origem) e índices do schema consumo

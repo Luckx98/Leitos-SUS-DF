@@ -55,7 +55,10 @@ nav:
       - Consulta otimizada: e3/05-consulta-otimizada.md
       - Freshness e SLA: e3/06-freshness-e-sla.md
       - Painel: e3/07-painel.md
+      - Banco vetorial: e3/08-banco-vetorial.md
       - ADR 0003: adr/0003-estrela-semanal-sobre-dbt.md
+      - ADR 0004: adr/0004-cosseno-nao-e-o-limiar.md
   - Diário:
       - Semana de 05/10: diario/2026-10-05.md
       - 04/11 — camada analítica: diario/2026-11-04.md
+      - 11/11 — medição e vetor: diario/2026-11-11.md

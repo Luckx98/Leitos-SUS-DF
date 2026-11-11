@@ -33,7 +33,11 @@ Evidência: `transformacao/models/`, [ADR 0003](docs/adr/0003-estrela-semanal-so
 
 Três camadas (staging sobre `lote.*`, intermediate, marts) no DuckDB, publicadas no schema Postgres `consumo`. A opção nula é `sql/e3/opcao_nula.sql`: a mesma conta na origem, no cron, com o cadastro de hoje e sem teste.
 
-A L4 na origem custa 6,4 s para um ano (`docs/e1/05-caracterizacao-da-carga.md`). No recorte que valida o SQL (20 AIHs, janeiro de 2025), agregar o paciente-dia na hora levou 1,29 ms e ler o mart semanal levou 0,14 ms (`medicoes/e3/granularidade_2026-11-04.txt`). O `dbt build` desse recorte fechou com 77 passos sem erro. O tempo da opção nula no Postgres e os planos `EXPLAIN (ANALYZE, BUFFERS)` saem de `python -m transformacao` com o perfil no ar.
+A L4 na origem custa 6,4 s para um ano (`docs/e1/05-caracterizacao-da-carga.md`). No recorte que valida o SQL (20 AIHs, janeiro de 2025), agregar o paciente-dia na hora levou 1,29 ms e ler o mart semanal levou 0,14 ms (`medicoes/e3/granularidade_2026-11-04.txt`).
+
+Na amostra do perfil `e3` (DF, 01/2025, 20.995 internações), o `dbt build` fechou com 77 passos em 6,5 s. A opção nula na origem levou 1,0 s. O plano de `fato_internacao` passou de varredura (2,51 ms) para índice (1,16 ms). A semana, com 28 linhas, continuou em varredura. Nenhuma semana dessa competência passou de 85%. Evidência em `medicoes/e3/amostra/`.
+
+Na série DF e GO (`MODO=completo`, 2026-11-11) o `dbt build` fechou com 77 passos em 21,4 s: 3.796.467 internações, 19.091.193 paciente-dias e 7.500 semanas. Ler as 207 semanas acima de 85% no mart levou 41,8 ms. A opção nula na origem levou 55,5 s e contou 206 semanas, porque usa o cadastro de hoje. O `EXPLAIN` dessa SQL levou 165,9 s. No fato completo, o CNES com mais AIHs ficou mais rápido na varredura paralela (204,5 ms) do que no índice (376,0 ms). Evidência em `medicoes/e3/granularidade_2026-11-11.txt` e `medicoes/e3/explain_*.txt`. A amostra de 01/2025 tinha entrado antes do histórico; `python -m loader.repor_versoes` devolveu 7.623 versões de cadastro de 2021–2024 para o lote.
 
 ## 3. Testes que pegam dado sujo
 
@@ -77,8 +81,10 @@ O CDC continua no perfil `e2` e não alimenta esta camada.
 
 Status atual:
 
-- **Sobe do clone, sem rede, na amostra:** `docker compose --profile e3 up --build`.
-- **Números da série 2021–2025:** `MODO=completo`. O arquivo de granularidade desta data é o recorte de verificação do SQL, não essa série.
-- **Diário de bordo:** `docs/diario/2026-11-04.md`.
+- **Sobe do clone, sem rede, na amostra:** `docker compose --profile e3 up --build`. Medido em 2026-11-11: 77 passos, opção nula em 1,0 s, índice usado em `fato_internacao`.
+- **Retry e backfill:** `medicoes/e3/retry_2026-11-11.txt` e `medicoes/e3/backfill_2026-11-11.txt`.
+- **Série 2021–2026 medida:** `dbt build` em 21,4 s, opção nula em 55,5 s, 207 semanas acima de 85% lidas em 41,8 ms. Arquivo: `medicoes/e3/granularidade_2026-11-11.txt`.
+- **Experimento vetorial:** `scripts/demo_vetor.sh`, [ADR 0004](docs/adr/0004-cosseno-nao-e-o-limiar.md). O cosseno não substitui `acima_de_85`.
+- **Diário de bordo:** `docs/diario/2026-11-04.md` e `docs/diario/2026-11-11.md`.
 
 Documentação da entrega: [docs/e3/](docs/e3/index.md).

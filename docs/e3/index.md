@@ -16,6 +16,7 @@ A fonte analítica é `lote.*`. O [ADR 0002](../adr/0002-lote-incremental-e-cdc-
 | Freshness e SLA | [Freshness e SLA](06-freshness-e-sla.md) | `transformacao/models/marts/sla.sql`, `consumo.controle_freshness` |
 | ADR de modelagem e ferramenta | [ADR 0003](../adr/0003-estrela-semanal-sobre-dbt.md) | `sql/e3/opcao_nula.sql` |
 | Painel da pergunta da E1 | [Painel](07-painel.md) | `painel/app.py` |
+| Experimento vetorial: cosseno não é o limiar | [Banco vetorial](08-banco-vetorial.md) | `semantico/`, `scripts/demo_vetor.sh` |
 
 ```bash
 docker compose --profile e3 up --build

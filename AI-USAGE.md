@@ -282,3 +282,32 @@ tradução. Registre o que produziu artefato ou mudou uma decisão.
   `EXPLAIN` e o painel no navegador ficaram para `docker compose --profile e3 up --build`.
 - **Quem revisou:** ainda não. A entrada é desta sessão; outro integrante ainda
   não leu o diff.
+
+### 2026-11-11 — Série do warehouse e experimento pgvector
+
+- **Ferramenta:** Cursor, modelo Grok 4.7.
+- **Onde:** `loader/cnes.py`, `loader/versoes.py`, `loader/repor_versoes.py`,
+  `tests/test_cnes_versao.py`, `docs/adr/0003-estrela-semanal-sobre-dbt.md`,
+  `docs/adr/0004-cosseno-nao-e-o-limiar.md`, `docs/e3/05-consulta-otimizada.md`,
+  `docs/e3/08-banco-vetorial.md`, `docs/diario/2026-11-11.md`, `RELEASE-e3.md`,
+  `README.md`, `medicoes/e3/` (planos, granularidade da série e `vetor_2026-11-11.txt`).
+- **O que foi pedido:** fechar o Data Warehouse com a evidência medida
+  (EXPLAIN, opção nula, retry, backfill e, se a máquina aguentasse, a série
+  completa) e começar o banco vetorial como experimento: pgvector sobre as
+  frases do mart, cosseno comparado ao limiar de 85%, ADR 0004. Sem chatbot,
+  sem RAG e sem ampliar o painel.
+- **O que foi aproveitado:** a medição da amostra e da série no perfil `e3`,
+  a correção do loader que descartava versão anterior quando a amostra de
+  01/2025 já tinha gravado uma posterior (`python -m loader.repor_versoes`,
+  7.623 versões), e o experimento que gravou 7.500 frases. Os três top-5
+  tiveram 0 semanas acima de 85%.
+- **O que não foi aproveitado:** trocar o painel por busca semântica, subir
+  Qdrant ou um modelo por API, e reabrir o CDC no perfil `e3`. O índice de
+  `(cnes, dt_saida)` não foi forçado: na série a varredura paralela foi mais
+  rápida, e o plano gravado é o que o Postgres escolheu.
+- **Como foi verificado:** `python3 -m unittest tests.test_cnes_versao`;
+  `dbt build` com `MODO=completo`, 77 passos em 21,4 s; publicação de
+  3.796.467 internações e 7.500 semanas; `scripts/demo_vetor.sh` gerou
+  `medicoes/e3/vetor_2026-11-11.txt`.
+- **Quem revisou:** ainda não. A entrada é desta sessão; outro integrante ainda
+  não leu o diff.
