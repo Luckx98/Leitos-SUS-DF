@@ -1,0 +1,20 @@
+leitos_analitico:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', '/app/var/analitico.duckdb') }}"
+      schema: main
+      threads: 2
+      extensions:
+        - httpfs
+        - iceberg
+      # O SET do on-run-start fica no cursor daquele hook. Cada modelo abre
+      # outro cursor, e sem isto o iceberg_scan cai na AWS sem credencial.
+      settings:
+        s3_endpoint: "{{ env_var('S3_HOST', 'seaweedfs:8333') }}"
+        s3_access_key_id: "{{ env_var('S3_ACCESS_KEY', 'leitos') }}"
+        s3_secret_access_key: "{{ env_var('S3_SECRET_KEY', 'leitos-segredo') }}"
+        s3_use_ssl: "false"
+        s3_url_style: path
+        s3_region: us-east-1

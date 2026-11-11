@@ -1,0 +1,5 @@
+# Backfill por ano — 2026-11-11 16:36
+
+depois de publicar só 2020 (ano sem competência nesta carga): 0 linhas, 0 anos
+backfill 2025: sucesso=True → 28 linhas, 1 anos no consumo
+índices recriados e planos atualizados

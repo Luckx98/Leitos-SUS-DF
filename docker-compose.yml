@@ -1,10 +1,11 @@
 name: leitos
 
 services:
-  # ── PostgreSQL 16 (origem OLTP) ───────────────────────────────────
+  # ── PostgreSQL 16 (origem OLTP) + pgvector ───────────────────────
   # wal_level=logical desde a E1 para o CDC (Debezium) da E2.
+  # A imagem pgvector é o mesmo Postgres 16, com a extensão do experimento.
   postgres:
-    image: docker.io/library/postgres:16
+    image: docker.io/pgvector/pgvector:pg16
     container_name: leitos_postgres
     restart: unless-stopped
     command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4"]
@@ -65,7 +66,7 @@ services:
   seaweedfs:
     image: docker.io/chrislusf/seaweedfs:4.01
     container_name: leitos_seaweedfs
-    profiles: ["e2"]
+    profiles: ["e2", "e3"]
     restart: unless-stopped
     command: ["server", "-ip.bind=0.0.0.0", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json", "-master.volumeSizeLimitMB=1024"]
     ports:
@@ -131,7 +132,7 @@ services:
   lakehouse-init:
     build: .
     container_name: leitos_lakehouse_init
-    profiles: ["e2"]
+    profiles: ["e2", "e3"]
     restart: "no"
     command: ["python", "-m", "lakehouse.preparar"]
     environment: &lakehouse_env
@@ -151,7 +152,7 @@ services:
   lote:
     build: .
     container_name: leitos_lote
-    profiles: ["e2"]
+    profiles: ["e2", "e3"]
     restart: "no"
     command: ["python", "-m", "lakehouse.lote"]
     environment:
@@ -184,9 +185,77 @@ services:
       lakehouse-init:
         condition: service_completed_successfully
 
+  # ══ Perfil e3: modelo analítico, orquestração e painel ═════════════
+  # Não sobe Redpanda, Debezium nem o consumidor de CDC (perfil e2).
+  # docker compose --profile e3 up --build
+
+  transformar:
+    build: .
+    container_name: leitos_transformar
+    profiles: ["e3"]
+    restart: "no"
+    command: ["python", "-m", "transformacao"]
+    environment:
+      <<: *lakehouse_env
+      DUCKDB_PATH: /app/var/analitico.duckdb
+      MODO: ${MODO:-amostra}
+      SERIE_COMPLETA: ${SERIE_COMPLETA:-}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - analitico:/app/var
+      - ./medicoes:/app/medicoes
+    mem_limit: 2g
+    depends_on:
+      lote:
+        condition: service_completed_successfully
+
+  orquestrador:
+    build: .
+    container_name: leitos_orquestrador
+    profiles: ["e3"]
+    restart: unless-stopped
+    command: ["python", "-m", "orquestracao"]
+    environment:
+      <<: *lakehouse_env
+      DUCKDB_PATH: /app/var/analitico.duckdb
+      DAGSTER_HOME: /app/var/dagster_home
+      MODO: ${MODO:-amostra}
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "${DAGSTER_PORT:-3000}:3000"
+    volumes:
+      - analitico:/app/var
+      - ./medicoes:/app/medicoes
+    mem_limit: 768m
+    depends_on:
+      transformar:
+        condition: service_completed_successfully
+
+  painel:
+    build: .
+    container_name: leitos_painel
+    profiles: ["e3"]
+    restart: unless-stopped
+    command:
+      [
+        "streamlit", "run", "painel/app.py",
+        "--server.address=0.0.0.0", "--server.port=8501",
+        "--server.headless=true", "--browser.gatherUsageStats=false",
+      ]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-leitos}:${POSTGRES_PASSWORD:-leitos}@postgres:5432/${POSTGRES_DB:-leitos}
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "${PAINEL_PORT:-8501}:8501"
+    mem_limit: 512m
+    depends_on:
+      transformar:
+        condition: service_completed_successfully
+
 volumes:
   postgres_data:
   dados_brutos:
   seaweedfs_data:
   redpanda_data:
   debezium_data:
+  analitico:

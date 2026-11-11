@@ -1,0 +1,133 @@
+version: 2
+
+models:
+  - name: dim_estabelecimento
+    description: >
+      Uma linha por versão de cadastro de um estabelecimento, vigente de
+      valido_de até a véspera da versão seguinte. Variação lenta tipo 2:
+      gestão, natureza jurídica e mantenedora não são sobrescritas.
+    columns:
+      - name: sk_estabelecimento
+        tests: [not_null, unique]
+      - name: cnes
+        tests: [not_null]
+      - name: valido_de
+        tests: [not_null]
+      - name: tipo_gestao
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["E", "M", "D", "S", "F", "Z"]
+      - name: cod_regiao_saude
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_regiao_saude')
+                field: cod_regiao_saude
+
+  - name: dim_semana
+    description: Uma linha por semana ISO e por UF, com a marca de mês provisório daquela UF.
+    columns:
+      - name: semana
+        tests: [not_null]
+      - name: cod_uf
+        tests: [not_null]
+
+  - name: dim_regiao_saude
+    description: Uma linha por região de saúde.
+    columns:
+      - name: cod_regiao_saude
+        tests: [not_null, unique]
+      - name: nome
+        tests: [not_null]
+      - name: cod_uf
+        tests: [not_null]
+
+  - name: dim_cid
+    description: Uma linha por CID-10, com o capítulo.
+    columns:
+      - name: cod_cid
+        tests: [not_null, unique]
+      - name: capitulo_cid
+        tests: [not_null]
+
+  - name: fato_internacao
+    description: Uma linha por AIH paga na carga vigente, ligada à versão do estabelecimento na data da saída.
+    columns:
+      - name: n_aih
+        tests: [not_null]
+      - name: dt_saida
+        tests: [not_null]
+      - name: sk_estabelecimento
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_estabelecimento')
+                field: sk_estabelecimento
+      - name: cid_principal
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_cid')
+                field: cod_cid
+      - name: cod_regiao_saude
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_regiao_saude')
+                field: cod_regiao_saude
+
+  - name: ocupacao_semana_regiao
+    description: >
+      Uma linha por região de saúde por semana ISO. Ocupação estimada =
+      paciente-dia ÷ (leitos SUS cadastrados × 7). acima_de_85 responde à pergunta da E1.
+    columns:
+      - name: cod_regiao_saude
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_regiao_saude')
+                field: cod_regiao_saude
+      - name: semana
+        tests: [not_null]
+      - name: paciente_dias
+        tests: [not_null]
+      - name: leitos_sus
+        tests: [not_null]
+      - name: acima_de_85
+        tests: [not_null]
+      - name: construida_em
+        tests: [not_null]
+
+  - name: causa_semana_regiao
+    description: >
+      Uma linha por região de saúde, por semana ISO e por capítulo da CID-10,
+      com a parcela dos paciente-dias da semana.
+    columns:
+      - name: cod_regiao_saude
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_regiao_saude')
+                field: cod_regiao_saude
+      - name: semana
+        tests: [not_null]
+      - name: capitulo_cid
+        tests: [not_null]
+      - name: paciente_dias
+        tests: [not_null]
+      - name: parcela
+        tests: [not_null]
+
+  - name: sla
+    description: SLA declarado da tabela de consumo ocupacao_semana_regiao.
+    columns:
+      - name: tabela
+        tests: [not_null, unique]
+      - name: sla_horas
+        tests: [not_null]

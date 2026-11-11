@@ -1,0 +1,39 @@
+-- 2026-11-11 17:07
+-- SELECT capitulo_cid, count(*) AS internacoes, sum(dias_permanencia) AS paciente_dias
+            FROM consumo.fato_internacao
+            WHERE cnes = '0010456'
+              AND dt_saida >= DATE '2021-01-01' AND dt_saida < DATE '2026-01-01'
+            GROUP BY capitulo_cid
+            ORDER BY paciente_dias DESC
+
+Sort  (cost=97332.85..97332.90 rows=21 width=19) (actual time=202.734..204.489 rows=21 loops=1)
+  Sort Key: (sum(dias_permanencia)) DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=2192 read=66058
+  ->  Finalize GroupAggregate  (cost=97326.96..97332.39 rows=21 width=19) (actual time=202.683..204.482 rows=21 loops=1)
+        Group Key: capitulo_cid
+        Buffers: shared hit=2192 read=66058
+        ->  Gather Merge  (cost=97326.96..97331.86 rows=42 width=19) (actual time=202.676..204.463 rows=62 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=2192 read=66058
+              ->  Sort  (cost=96326.94..96326.99 rows=21 width=19) (actual time=200.050..200.052 rows=21 loops=3)
+                    Sort Key: capitulo_cid
+                    Sort Method: quicksort  Memory: 25kB
+                    Buffers: shared hit=2192 read=66058
+                    Worker 0:  Sort Method: quicksort  Memory: 25kB
+                    Worker 1:  Sort Method: quicksort  Memory: 25kB
+                    ->  Partial HashAggregate  (cost=96326.27..96326.48 rows=21 width=19) (actual time=200.014..200.017 rows=21 loops=3)
+                          Group Key: capitulo_cid
+                          Batches: 1  Memory Usage: 24kB
+                          Buffers: shared hit=2176 read=66058
+                          Worker 0:  Batches: 1  Memory Usage: 24kB
+                          Worker 1:  Batches: 1  Memory Usage: 24kB
+                          ->  Parallel Seq Scan on fato_internacao  (cost=0.00..95916.35 rows=54655 width=7) (actual time=0.448..189.742 rows=44057 loops=3)
+                                Filter: ((dt_saida >= '2021-01-01'::date) AND (dt_saida < '2026-01-01'::date) AND ((cnes)::text = '0010456'::text))
+                                Rows Removed by Filter: 1221432
+                                Buffers: shared hit=2176 read=66058
+Planning:
+  Buffers: shared hit=14 read=1
+Planning Time: 0.292 ms
+Execution Time: 204.525 ms

@@ -1,0 +1,168 @@
+-- 2026-11-11 16:36
+-- -- Opção nula da E3: a pergunta de gestão calculada direto na origem.
+-- É o que um cron com script SQL rodaria. Usa a versão mais recente do
+-- cadastro (DISTINCT ON ... competencia_inicio DESC), não a versão vigente
+-- na data da saída. Sem camada, sem teste e sem grafo.
+-- Ocupação = paciente-dia da semana ÷ (leitos SUS da competência × 7).
+WITH regiao AS (
+    SELECT DISTINCT ON (v.cnes) v.cnes,
+           CASE WHEN v.cod_municipio = '530010' THEN df.cod_regiao_saude ELSE m.cod_regiao_saude END AS cod_regiao_saude
+    FROM estabelecimento_versao v
+    JOIN municipio m USING (cod_municipio)
+    LEFT JOIN estabelecimento_regiao_df df USING (cnes)
+    ORDER BY v.cnes, v.competencia_inicio DESC
+),
+paciente_dia AS (
+    SELECT r.cod_regiao_saude, date_trunc('week', d.dia)::date AS semana, count(*) AS paciente_dias
+    FROM internacao_vigente i
+    JOIN regiao r USING (cnes)
+    CROSS JOIN LATERAL generate_series(
+        i.dt_saida - i.dias_permanencia, i.dt_saida - 1, interval '1 day'
+    ) AS d(dia)
+    WHERE i.dias_permanencia > 0
+      AND r.cod_regiao_saude IS NOT NULL
+    GROUP BY 1, 2
+),
+leitos AS (
+    SELECT r.cod_regiao_saude, l.competencia, sum(l.qt_sus) AS leitos_sus
+    FROM leito_vigente l
+    JOIN regiao r USING (cnes)
+    WHERE r.cod_regiao_saude IS NOT NULL
+    GROUP BY 1, 2
+)
+SELECT rs.cod_uf, rs.nome AS regiao_saude, p.semana, p.paciente_dias, l.leitos_sus,
+       round(p.paciente_dias / (l.leitos_sus * 7.0), 3) AS ocupacao
+FROM paciente_dia p
+JOIN leitos l
+  ON l.cod_regiao_saude = p.cod_regiao_saude
+ AND l.competencia = date_trunc('month', p.semana)::date
+JOIN regiao_saude rs ON rs.cod_regiao_saude = p.cod_regiao_saude
+WHERE l.leitos_sus > 0
+ORDER BY rs.cod_uf DESC, rs.nome, p.semana
+
+Sort  (cost=16361627.02..16361627.19 rows=67 width=71) (actual time=611.328..611.340 rows=28 loops=1)
+  Sort Key: rs.cod_uf DESC, rs.nome, ((date_trunc('week'::text, d.dia))::date)
+  Sort Method: quicksort  Memory: 27kB
+  Buffers: shared hit=12436
+  CTE regiao
+    ->  Unique  (cost=711.99..743.20 rows=6243 width=36) (actual time=475.631..476.649 rows=6243 loops=1)
+          Buffers: shared hit=69
+          ->  Sort  (cost=711.99..727.60 rows=6243 width=36) (actual time=475.630..475.901 rows=6243 loops=1)
+                Sort Key: v.cnes, v.competencia_inicio DESC
+                Sort Method: quicksort  Memory: 437kB
+                Buffers: shared hit=69
+                ->  Hash Left Join  (cost=2.55..318.43 rows=6243 width=36) (actual time=470.636..474.569 rows=6243 loops=1)
+                      Hash Cond: (v.cnes = df.cnes)
+                      Buffers: shared hit=69
+                      ->  Nested Loop  (cost=0.29..284.16 rows=6243 width=25) (actual time=470.592..473.696 rows=6243 loops=1)
+                            Buffers: shared hit=68
+                            ->  Seq Scan on estabelecimento_versao v  (cost=0.00..127.43 rows=6243 width=19) (actual time=0.018..0.719 rows=6243 loops=1)
+                                  Buffers: shared hit=65
+                            ->  Memoize  (cost=0.29..0.35 rows=1 width=13) (actual time=0.075..0.075 rows=1 loops=6243)
+                                  Cache Key: v.cod_municipio
+                                  Cache Mode: logical
+                                  Hits: 6242  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+                                  Buffers: shared hit=3
+                                  ->  Index Scan using municipio_pkey on municipio m  (cost=0.28..0.34 rows=1 width=13) (actual time=0.053..0.053 rows=1 loops=1)
+                                        Index Cond: (cod_municipio = v.cod_municipio)
+                                        Buffers: shared hit=3
+                      ->  Hash  (cost=1.56..1.56 rows=56 width=14) (actual time=0.032..0.033 rows=56 loops=1)
+                            Buckets: 1024  Batches: 1  Memory Usage: 11kB
+                            Buffers: shared hit=1
+                            ->  Seq Scan on estabelecimento_regiao_df df  (cost=0.00..1.56 rows=56 width=14) (actual time=0.019..0.024 rows=56 loops=1)
+                                  Buffers: shared hit=1
+  ->  Hash Join  (cost=16359430.28..16360881.79 rows=67 width=71) (actual time=610.836..611.285 rows=28 loops=1)
+        Hash Cond: ((r.cod_regiao_saude = l.cod_regiao_saude) AND ((date_trunc('month'::text, (((date_trunc('week'::text, d.dia))::date))::timestamp with time zone))::date = l.competencia))
+        Buffers: shared hit=12436
+        ->  HashAggregate  (cost=16358660.61..16359260.61 rows=40000 width=36) (actual time=133.001..133.378 rows=163 loops=1)
+              Group Key: r.cod_regiao_saude, (date_trunc('week'::text, d.dia))::date
+              Batches: 1  Memory Usage: 1569kB
+              Buffers: shared hit=12343
+              ->  Merge Join  (cost=524.71..12012515.61 rows=579486000 width=28) (actual time=0.309..117.649 rows=122450 loops=1)
+                    Merge Cond: (i.cnes = r.cnes)
+                    Buffers: shared hit=12343
+                    ->  Nested Loop  (cost=8.46..375630.57 rows=18657000 width=16) (actual time=0.106..66.030 rows=122450 loops=1)
+                          Buffers: shared hit=12343
+                          ->  Nested Loop  (cost=8.45..2490.55 rows=18657 width=14) (actual time=0.076..27.096 rows=18657 loops=1)
+                                Join Filter: (i.id_carga = c.id_carga)
+                                Rows Removed by Join Filter: 37314
+                                Buffers: shared hit=12343
+                                ->  Index Scan using idx_internacao_cnes_saida on internacao i  (cost=0.29..2202.46 rows=18657 width=22) (actual time=0.051..18.634 rows=18657 loops=1)
+                                      Filter: (dias_permanencia > 0)
+                                      Rows Removed by Filter: 2338
+                                      Buffers: shared hit=12341
+                                ->  Materialize  (cost=8.16..8.24 rows=1 width=8) (actual time=0.000..0.000 rows=3 loops=18657)
+                                      Buffers: shared hit=2
+                                      ->  Subquery Scan on c  (cost=8.16..8.23 rows=1 width=8) (actual time=0.016..0.020 rows=3 loops=1)
+                                            Buffers: shared hit=2
+                                            ->  Unique  (cost=8.16..8.22 rows=1 width=448) (actual time=0.014..0.017 rows=3 loops=1)
+                                                  Buffers: shared hit=2
+                                                  ->  Incremental Sort  (cost=8.16..8.21 rows=2 width=448) (actual time=0.013..0.014 rows=3 loops=1)
+                                                        Sort Key: carga.fonte, carga.uf, carga.competencia, carga.id_carga DESC
+                                                        Presorted Key: carga.fonte
+                                                        Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 25kB  Peak Memory: 25kB
+                                                        Buffers: shared hit=2
+                                                        ->  Index Scan using uq_carga_arquivo_concluida on carga  (cost=0.14..8.15 rows=1 width=448) (actual time=0.006..0.007 rows=3 loops=1)
+                                                              Filter: (competencia IS NOT NULL)
+                                                              Rows Removed by Filter: 2
+                                                              Buffers: shared hit=2
+                          ->  Function Scan on generate_series d  (cost=0.02..10.02 rows=1000 width=8) (actual time=0.001..0.001 rows=7 loops=18657)
+                    ->  Sort  (cost=516.24..531.77 rows=6212 width=56) (actual time=0.182..5.516 rows=122473 loops=1)
+                          Sort Key: r.cnes
+                          Sort Method: quicksort  Memory: 26kB
+                          ->  CTE Scan on regiao r  (cost=0.00..124.86 rows=6212 width=56) (actual time=0.004..0.172 rows=51 loops=1)
+                                Filter: (cod_regiao_saude IS NOT NULL)
+                                Rows Removed by Filter: 6192
+        ->  Hash  (cost=768.67..768.67 rows=67 width=61) (actual time=477.786..477.790 rows=7 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+              Buffers: shared hit=93
+              ->  Hash Join  (cost=757.87..768.67 rows=67 width=61) (actual time=477.772..477.778 rows=7 loops=1)
+                    Hash Cond: (rs.cod_regiao_saude = l.cod_regiao_saude)
+                    Buffers: shared hit=93
+                    ->  Seq Scan on regiao_saude rs  (cost=0.00..8.46 rows=446 width=25) (actual time=0.026..0.078 rows=446 loops=1)
+                          Buffers: shared hit=4
+                    ->  Hash  (cost=757.03..757.03 rows=67 width=36) (actual time=477.645..477.649 rows=7 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          Buffers: shared hit=89
+                          ->  Subquery Scan on l  (cost=753.86..757.03 rows=67 width=36) (actual time=477.638..477.644 rows=7 loops=1)
+                                Buffers: shared hit=89
+                                ->  HashAggregate  (cost=753.86..756.36 rows=67 width=36) (actual time=477.636..477.641 rows=7 loops=1)
+                                      Group Key: r_1.cod_regiao_saude, l_1.competencia
+                                      Filter: (sum(l_1.qt_sus) > 0)
+                                      Batches: 1  Memory Usage: 40kB
+                                      Buffers: shared hit=89
+                                      ->  Hash Join  (cost=34.04..622.01 rows=17580 width=30) (actual time=476.058..477.578 rows=398 loops=1)
+                                            Hash Cond: (r_1.cnes = l_1.cnes)
+                                            Buffers: shared hit=89
+                                            ->  CTE Scan on regiao r_1  (cost=0.00..124.86 rows=6212 width=56) (actual time=475.658..477.141 rows=51 loops=1)
+                                                  Filter: (cod_regiao_saude IS NOT NULL)
+                                                  Rows Removed by Filter: 6192
+                                                  Buffers: shared hit=69
+                                            ->  Hash  (cost=26.97..26.97 rows=566 width=14) (actual time=0.390..0.392 rows=566 loops=1)
+                                                  Buckets: 1024  Batches: 1  Memory Usage: 34kB
+                                                  Buffers: shared hit=20
+                                                  ->  Nested Loop  (cost=8.16..26.97 rows=566 width=14) (actual time=0.068..0.325 rows=566 loops=1)
+                                                        Join Filter: (l_1.id_carga = carga_1.id_carga)
+                                                        Rows Removed by Join Filter: 1132
+                                                        Buffers: shared hit=20
+                                                        ->  Unique  (cost=8.16..8.22 rows=1 width=448) (actual time=0.043..0.048 rows=3 loops=1)
+                                                              Buffers: shared hit=2
+                                                              ->  Incremental Sort  (cost=8.16..8.21 rows=2 width=448) (actual time=0.042..0.043 rows=3 loops=1)
+                                                                    Sort Key: carga_1.fonte, carga_1.uf, carga_1.competencia, carga_1.id_carga DESC
+                                                                    Presorted Key: carga_1.fonte
+                                                                    Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 25kB  Peak Memory: 25kB
+                                                                    Buffers: shared hit=2
+                                                                    ->  Index Scan using uq_carga_arquivo_concluida on carga carga_1  (cost=0.14..8.15 rows=1 width=448) (actual time=0.027..0.028 rows=3 loops=1)
+                                                                          Filter: (competencia IS NOT NULL)
+                                                                          Rows Removed by Filter: 2
+                                                                          Buffers: shared hit=2
+                                                        ->  Seq Scan on leito l_1  (cost=0.00..11.66 rows=566 width=22) (actual time=0.007..0.051 rows=566 loops=3)
+                                                              Buffers: shared hit=18
+Planning:
+  Buffers: shared hit=546
+Planning Time: 3.204 ms
+JIT:
+  Functions: 95
+  Options: Inlining true, Optimization true, Expressions true, Deforming true
+  Timing: Generation 2.996 ms, Inlining 62.288 ms, Optimization 213.863 ms, Emission 194.476 ms, Total 473.622 ms
+Execution Time: 662.710 ms

@@ -1,0 +1,29 @@
+name: leitos_analitico
+version: "1.0.0"
+config-version: 2
+profile: leitos_analitico
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+on-run-start:
+  - "{% do configurar_s3() %}"
+
+models:
+  leitos_analitico:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+      int_capitulo:
+        +materialized: view
+      int_paciente_dia:
+        +materialized: view
+    marts:
+      +materialized: table
+      +schema: marts

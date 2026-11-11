@@ -16,11 +16,11 @@ Capacidade e demanda são acompanhadas em sistemas separados. A falta de leito, 
 
 ## Fontes
 
-| Fonte | Conteúdo |
-| --- | --- |
-| SIH/SUS (AIH reduzida) | uma linha por internação paga pelo SUS, publicada mensalmente |
+| Fonte                            | Conteúdo                                                       |
+| -------------------------------- | -------------------------------------------------------------- |
+| SIH/SUS (AIH reduzida)           | uma linha por internação paga pelo SUS, publicada mensalmente  |
 | CNES (estabelecimentos e leitos) | cadastro de estabelecimentos e leitos por tipo, retrato mensal |
-| Tabelas auxiliares do DATASUS | CID-10, municípios e regiões de saúde |
+| Tabelas auxiliares do DATASUS    | CID-10, municípios e regiões de saúde                          |
 
 Os dados vêm do FTP público do DATASUS e do Portal de Dados Abertos do SUS, sob licença Creative Commons Atribuição-SemDerivações 3.0.
 
@@ -35,7 +35,8 @@ Os dados vêm do FTP público do DATASUS e do Portal de Dados Abertos do SUS, so
 - **LOTE:** exportação incremental da origem para o lakehouse, por marca d'água de carga, com reprocessamento da janela de dado atrasado. [Mais detalhes](e2/01-lote-incremental.md).
 - **CDC:** Debezium lê o WAL lógico e publica no Redpanda; um consumidor Python grava no Iceberg com latência de segundos. [Mais detalhes](e2/02-cdc.md).
 - **LAKEHOUSE (ICEBERG):** os dois caminhos escrevem o mesmo esquema, em namespaces separados, para serem reconciliados e comparados. Toda escrita cria um snapshot novo; os anteriores continuam acessíveis, o que permite consultar — ou voltar a tabela inteira (`rollback`) — a um estado passado, sem uma tabela de histórico separada. É o que [a demonstração da semântica de entrega](e2/04-semantica-de-entrega.md) usa para restaurar `cdc.*` depois de uma releitura sem deduplicação. Decisão e medições no [ADR 0002](adr/0002-lote-incremental-e-cdc-sobre-iceberg.md).
-
+- **CAMADA ANALÍTICA:** o dbt lê `lote.*`, monta a estrela da semana (ocupação e capítulo da CID) e publica no schema `consumo`. O Dagster agenda, repete a etapa que falha e preenche um ano. O painel responde em quais semanas a ocupação passou de 85%. O CDC não entra nesta camada. Decisão no [ADR 0003](adr/0003-estrela-semanal-sobre-dbt.md); a entrega está em [docs/e3](e3/index.md).
+- **BANCO VETORIAL:** a frase de cada semana do mart vai para o pgvector, no mesmo Postgres. A pesquisa é por cosseno e a pontuação não é o limiar de 85%. Na série medida, os três top-5 tiveram 0 de 5 acima de 85%. É um experimento, não a integração semântica. Decisão no [ADR 0004](adr/0004-cosseno-nao-e-o-limiar.md).
 
 ## Executar
 
@@ -49,14 +50,14 @@ O README do repositório traz o modo de carga completa, as consultas de verifica
 
 ## Equipe
 
-| Nome | Matrícula |
-| --- | --- |
-| Lucas Macedo Barboza | 190091720 |
-| Caetano Santos Lucio | 180144979 |
-| Cairo Florenço | 222014975 |
-| Leonardo Sobrinho | 200022199 |
+| Nome                              | Matrícula |
+| --------------------------------- | --------- |
+| Lucas Macedo Barboza              | 190091720 |
+| Caetano Santos Lucio              | 180144979 |
+| Cairo Florenço                    | 222014975 |
+| Leonardo Sobrinho                 | 200022199 |
 | Carlos Eduardo Mendes de Mesquita | 190085584 |
-| Bruna de Lima | 211041105 |
-| Lais Cecília | 211029512 |
+| Bruna de Lima                     | 211041105 |
+| Lais Cecília                      | 211029512 |
 
 O código-fonte está no [repositório do projeto](https://github.com/Luckx98/Leitos-SUS-DF).

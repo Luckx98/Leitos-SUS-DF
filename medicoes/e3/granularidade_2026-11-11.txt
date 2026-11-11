@@ -1,0 +1,25 @@
+# Grãos e opção nula — 2026-11-11 17:11
+# modo=completo
+
+## Volume
+internações (fato_internacao)          3796467
+paciente-dia (grão fino, não persistido no consumo)  19091193
+ocupação semana × região (grão grosso) 7500
+causa semana × região × capítulo       128515
+parquet do paciente-dia                28.34 MB
+parquet da ocupação semanal            0.11 MB
+
+## Tempo da pergunta (semanas e a contagem de paciente-dia)
+agregar o grão fino já materializado   177.0 ms
+ler o grão grosso                      5.6 ms
+persistir o grão fino (custo de guardá-lo) 4.6 s
+ler o consumo no Postgres (acima de 85%)   41.8 ms  (207 semanas)
+
+## Opção nula: SQL da L4 direto na origem, sem modelo nem teste
+tempo                                  55.5 s
+linhas (região × semana)               7500
+semanas com ocupação acima de 85%      206
+dbt build (modelo, testes e as duas camadas) 21.4 s
+
+O grão fino não entra no schema consumo: a pergunta lê o grão grosso.
+Na carga completa de um ano a mesma expansão, feita na origem a cada consulta, levou 6,4 s (E1, L4).

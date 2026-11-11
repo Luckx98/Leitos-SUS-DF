@@ -84,8 +84,8 @@ tradução. Registre o que produziu artefato ou mudou uma decisão.
   - campos identificadores (NASC, CEP, CPF_AUT, GESTOR_CPF) não são gravados;
   - CIDs ausentes do `cid10.dbf` do DATASUS (N18.2–N18.5 e U04/U09/U10) ficam
     rejeitados e contados em `carga_rejeicao`, por decisão da Squad.
-  O assistente errou o parser dos arquivos `.cnv` na primeira versão (nenhuma
-  região era reconhecida); o erro apareceu na primeira execução e foi corrigido.
+    O assistente errou o parser dos arquivos `.cnv` na primeira versão (nenhuma
+    região era reconhecida); o erro apareceu na primeira execução e foi corrigido.
 - **Como foi verificado:** `docker compose up --build` numa cópia limpa do
   repositório, sem `.env`: as 6 migrações rodaram em ordem e a amostra carregou.
   `UPDATE` e `DELETE` foram recusados pelo trigger. Uma segunda execução ignorou
@@ -119,7 +119,7 @@ tradução. Registre o que produziu artefato ou mudou uma decisão.
 - **Onde:** `sql/caracterizacao/` (volume, escrita, represamento, consultas de
   leitura L1–L6 e `executar.sh`) e `sql/historico/` (consultas H1–H4 e
   `executar.sh`), com os resultados de 2026-10-07 em `resultados/`.
-- **O que foi pedido:** consultas que medem volume, escrita, leitura e defasagem da origem. 
+- **O que foi pedido:** consultas que medem volume, escrita, leitura e defasagem da origem.
   E também, consultas que só são possíveis porque a origem guarda histórico.
 - **O que foi aproveitado:** todas as consultas e os dois scripts. As consultas
   de leitura foram escolhidas pelo assistente a partir das perguntas que a
@@ -189,7 +189,7 @@ tradução. Registre o que produziu artefato ou mudou uma decisão.
   fora do nome do repositório.
 - **Quem revisou:** Cairo Florenço.
 
-### 2026-10-19 — Correção de `lakehouse/reconciliar.py` 
+### 2026-10-19 — Correção de `lakehouse/reconciliar.py`
 
 - **Ferramenta:** Claude Code (modelo Claude Opus 5), extensão do VS Code.
 - **Onde:** `lakehouse/reconciliar.py` (commit `96073e7`).
@@ -213,7 +213,7 @@ tradução. Registre o que produziu artefato ou mudou uma decisão.
   continuam passando.
 - **Quem revisou:** Cairo Florenço.
 
-### 2026-10-19 — ADR 0002, mecanismo de ingestão e Iceberg × Delta 
+### 2026-10-19 — ADR 0002, mecanismo de ingestão e Iceberg × Delta
 
 - **Ferramenta:** Claude Code (modelo Claude Opus 5), extensão do VS Code.
 - **Onde:** `docker-compose.yml` (`mem_limit` do `cdc`), `lakehouse/cdc.py`
@@ -247,3 +247,67 @@ tradução. Registre o que produziu artefato ou mudou uma decisão.
   amostrando a memória do container `cdc` a cada 5 s. `docker compose build`
   e os 35 testes passando depois de cada mudança de código.
 - **Quem revisou:** Cairo Florenço.
+
+### 2026-11-04 — Camada analítica da E3
+
+- **Ferramenta:** Cursor, modelo Grok 4.7.
+- **Onde:** `transformacao/` (projeto dbt, publicação, planos e medição),
+  `orquestracao/` (Dagster, retry e backfill), `painel/app.py`, `sql/e3/`,
+  `scripts/demo_retry.sh`, `scripts/demo_backfill.sh`, `scripts/opcao_nula.sh`,
+  perfil `e3` em `docker-compose.yml`, `Dockerfile`, `requirements.txt`,
+  `docs/e3/`, `docs/adr/0003-estrela-semanal-sobre-dbt.md`, `RELEASE-e3.md`,
+  `docs/diario/2026-11-04.md`, `mkdocs.yml`, `README.md`, `docs/index.md`,
+  `medicoes/e3/granularidade_2026-11-04.txt`.
+- **O que foi pedido:** implementar a E3 conforme o plano da camada analítica:
+  estrela sobre `lote.*`, testes de domínio, medição dos grãos e da opção nula,
+  Dagster com retry e backfill, `EXPLAIN (ANALYZE, BUFFERS)`, SLA de 24 horas,
+  painel da pergunta da E1 e a documentação da entrega.
+- **O que foi aproveitado:** o projeto dbt em três camadas, a dimensão de
+  estabelecimento em variação lenta tipo 2 ligada pelo mês da saída, os testes
+  singulares, a publicação no schema `consumo`, o grafo do Dagster, o painel
+  Streamlit e os textos de `docs/e3`, do ADR 0003 e da release. O paciente-dia
+  ficou como view: a pergunta lê a semana, e a L4 na origem já custa 6,4 s
+  para um ano.
+- **O que não foi aproveitado:** persistir o grão paciente-dia no consumo.
+  No recorte de verificação (20 AIHs) a leitura do mart semanal foi mais barata
+  (0,14 ms contra 1,29 ms) e a resposta não muda.
+- **Como foi verificado:** `dbt build` no DuckDB 1.5.6 com Python 3.12, sobre
+  20 AIHs sintéticas: 77 passos sem erro, duas vigências do mesmo CNES (gestão
+  M até fevereiro, gestão E a partir de março), ocupação 1,1429 na semana de
+  06/01/2025 e capítulo 10 com parcela 1. Um segundo build só do ano 2025 saiu
+  com código 0. `docker compose --profile e3 config` tinha sido validado antes
+  do daemon cair. O socket do Docker não existia nesta sessão
+  (`~/.docker/run/docker.sock` ausente; o Desktop pede senha de administrador),
+  então o perfil não subiu: o tempo da opção nula no Postgres, os planos
+  `EXPLAIN` e o painel no navegador ficaram para `docker compose --profile e3 up --build`.
+- **Quem revisou:** ainda não. A entrada é desta sessão; outro integrante ainda
+  não leu o diff.
+
+### 2026-11-11 — Série do warehouse e experimento pgvector
+
+- **Ferramenta:** Cursor, modelo Grok 4.7.
+- **Onde:** `loader/cnes.py`, `loader/versoes.py`, `loader/repor_versoes.py`,
+  `tests/test_cnes_versao.py`, `docs/adr/0003-estrela-semanal-sobre-dbt.md`,
+  `docs/adr/0004-cosseno-nao-e-o-limiar.md`, `docs/e3/05-consulta-otimizada.md`,
+  `docs/e3/08-banco-vetorial.md`, `docs/diario/2026-11-11.md`, `RELEASE-e3.md`,
+  `README.md`, `medicoes/e3/` (planos, granularidade da série e `vetor_2026-11-11.txt`).
+- **O que foi pedido:** fechar o Data Warehouse com a evidência medida
+  (EXPLAIN, opção nula, retry, backfill e, se a máquina aguentasse, a série
+  completa) e começar o banco vetorial como experimento: pgvector sobre as
+  frases do mart, cosseno comparado ao limiar de 85%, ADR 0004. Sem chatbot,
+  sem RAG e sem ampliar o painel.
+- **O que foi aproveitado:** a medição da amostra e da série no perfil `e3`,
+  a correção do loader que descartava versão anterior quando a amostra de
+  01/2025 já tinha gravado uma posterior (`python -m loader.repor_versoes`,
+  7.623 versões), e o experimento que gravou 7.500 frases. Os três top-5
+  tiveram 0 semanas acima de 85%.
+- **O que não foi aproveitado:** trocar o painel por busca semântica, subir
+  Qdrant ou um modelo por API, e reabrir o CDC no perfil `e3`. O índice de
+  `(cnes, dt_saida)` não foi forçado: na série a varredura paralela foi mais
+  rápida, e o plano gravado é o que o Postgres escolheu.
+- **Como foi verificado:** `python3 -m unittest tests.test_cnes_versao`;
+  `dbt build` com `MODO=completo`, 77 passos em 21,4 s; publicação de
+  3.796.467 internações e 7.500 semanas; `scripts/demo_vetor.sh` gerou
+  `medicoes/e3/vetor_2026-11-11.txt`.
+- **Quem revisou:** ainda não. A entrada é desta sessão; outro integrante ainda
+  não leu o diff.
