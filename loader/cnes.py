@@ -9,6 +9,7 @@ import psycopg
 
 from loader.carga import Arquivo, Resultado
 from loader.dbf import ler_dbc
+from loader.versoes import deve_gravar_versao
 
 _CNES = re.compile(r"[0-9]{7}")
 
@@ -21,6 +22,13 @@ def _ou_nulo(valor: str, nulos: tuple[str, ...] = ("",)) -> str | None:
     return None if valor in nulos else valor
 
 
+def _limpo(valor: object) -> object:
+    if not isinstance(valor, str):
+        return valor
+    texto = valor.strip()
+    return texto or None
+
+
 def _competencia_do_registro(registro: dict, arquivo: Arquivo) -> bool:
     competencia: date = arquivo.competencia  # type: ignore[assignment]
     return registro.get("COMPETEN") == f"{competencia:%Y%m}"
@@ -29,17 +37,15 @@ def _competencia_do_registro(registro: dict, arquivo: Arquivo) -> bool:
 def processar_st(conexao: psycopg.Connection, id_carga: int, arquivo: Arquivo) -> tuple[Resultado, int]:
     resultado = Resultado()
     municipios = {linha[0] for linha in conexao.execute("SELECT cod_municipio FROM municipio")}
-    ultimas = {
-        linha[0]: (linha[1], tuple(linha[2:]))
-        for linha in conexao.execute(
-            """
-            SELECT DISTINCT ON (cnes) cnes, competencia_inicio, cod_municipio, tipo_unidade, tipo_gestao,
-                   natureza_juridica, cnpj_mantenedora, vinculo_sus, atende_internacao, atende_urgencia
-            FROM estabelecimento_versao
-            ORDER BY cnes, competencia_inicio DESC
-            """
-        )
-    }
+    por_cnes: dict[str, dict[date, tuple]] = {}
+    for linha in conexao.execute(
+        """
+        SELECT cnes, competencia_inicio, cod_municipio, tipo_unidade, tipo_gestao,
+               natureza_juridica, cnpj_mantenedora, vinculo_sus, atende_internacao, atende_urgencia
+        FROM estabelecimento_versao
+        """
+    ):
+        por_cnes.setdefault(linha[0].strip(), {})[linha[1]] = tuple(_limpo(valor) for valor in linha[2:])
 
     novos, versoes, vistos = [], [], set()
     for numero, registro in enumerate(ler_dbc(arquivo.caminho), start=1):
@@ -72,12 +78,15 @@ def processar_st(conexao: psycopg.Connection, id_carga: int, arquivo: Arquivo) -
             _flag(registro.get("ATENDHOS", "")),
             _flag(registro.get("URGEMERG", "")),
         )
-        anterior = ultimas.get(cnes)
-        if anterior is None:
+        conhecidas = por_cnes.get(cnes)
+        if conhecidas is None:
             novos.append((cnes, id_carga))
-        elif anterior[0] >= arquivo.competencia or anterior[1] == atributos:
-            continue  # sem mudança (ou competência já coberta por versão posterior)
+            conhecidas = {}
+            por_cnes[cnes] = conhecidas
+        if arquivo.competencia is None or not deve_gravar_versao(conhecidas, arquivo.competencia, atributos):
+            continue
         versoes.append((cnes, arquivo.competencia, *atributos, id_carga))
+        conhecidas[arquivo.competencia] = atributos
 
     with conexao.cursor() as cursor:
         if novos:
