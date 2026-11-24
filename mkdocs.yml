@@ -28,6 +28,7 @@ markdown_extensions:
 
 nav:
   - Início: index.md
+  - Dicionário de dados: dicionario-de-dados.md
   - Entrega 1:
       - Visão da entrega: e1/index.md
       - Domínio e pergunta: e1/01-dominio-e-pergunta.md

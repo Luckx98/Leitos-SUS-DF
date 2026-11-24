@@ -160,6 +160,7 @@ A documentação completa está no [GitHub Pages do Leitos SUS-DF](https://luckx
 
 | Tema                                   | Página                                                                                                                           |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Dicionário de dados                    | [docs/dicionario-de-dados.md](docs/dicionario-de-dados.md)                                                                       |
 | Domínio e pergunta de gestão           | [docs/e1/01-dominio-e-pergunta.md](docs/e1/01-dominio-e-pergunta.md)                                                             |
 | Esquema e migrações                    | [docs/e1/02-esquema-e-migracoes.md](docs/e1/02-esquema-e-migracoes.md)                                                           |
 | Carga reprodutível                     | [docs/e1/03-carga-reprodutivel.md](docs/e1/03-carga-reprodutivel.md)                                                             |
