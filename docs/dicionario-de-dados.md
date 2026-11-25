@@ -10,7 +10,7 @@ Este documento descreve todas as estruturas de dados da plataforma **Leitos SUS-
 [1. Fontes Brutas]         Arquivos .dbc, .dbf, .cnv (DATASUS) e .csv curado (DF)
         │
         ▼
-[2. Origem OLTP]           PostgreSQL 16 (schema public) — insert-only, versionado por competência
+[2. Banco de Origem]       PostgreSQL 16 (schema public) — insert-only, versionado por competência
         │
         ├──► [3a. Lakehouse Lote]  Apache Iceberg v2 (namespace lote.*) — incremental + janela de maturidade
         └──► [3b. Lakehouse CDC]   Apache Iceberg v2 (namespace cdc.*)  — Debezium + Redpanda
@@ -43,11 +43,13 @@ Todo dado transacional de saúde na plataforma distingue três marcos temporais:
 
 Origem: `ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/` (recorte local em `dados/amostra/RDDF2501.dbc`).
 
+> Nas tabelas desta seção, `ler_dbc` entrega todos os campos como texto. A coluna **Tipo Bruto** indica o formato esperado no arquivo (`TEXT/NUM` e `TEXT/DEC` são textos que o loader converte para número).
+
 | Campo Original (DBF/DBC) | Tipo Bruto | Coluna de Destino (`public.internacao`) | Tratamento / Regra de Validação no Loader (`loader/sih.py`) |
 | --- | --- | --- | --- |
 | `ANO_CMPT`, `MES_CMPT` | `CHAR(4)`, `CHAR(2)` | `competencia` | Concatenados (`AAAAMM`) e confrontados com a competência do nome do arquivo; gravado como `DATE` (`AAAA-MM-01`). |
-| `N_AIH` | `CHAR(13)` | `n_aih` | Deve obedecer à expressão regular `^[0-9]{13}$`. Único por `(N_AIH, DT_SAIDA)` dentro do mesmo arquivo. |
-| `DT_SAIDA` | `CHAR(8)` | `dt_saida` | Convertido de `AAAAMMDD` para `DATE`. Deve satisfazer `DT_SAIDA >= DT_INTER` e ser anterior ao mês seguinte ao da competência. |
+| `N_AIH` | `CHAR(13)` | `n_aih` | Deve obedecer à expressão regular `^[0-9]{13}$`. Único por `(N_AIH, DT_SAIDA)` dentro do mesmo arquivo (a PK da tabela inclui também `competencia` e `id_carga`; ver 3.10). |
+| `DT_SAIDA` | `CHAR(8)` | `dt_saida` | Convertido de `AAAAMMDD` para `DATE`. Deve satisfazer `DT_SAIDA >= DT_INTER`. |
 | `IDENT` | `CHAR(1)` | `ident` | Tipo da AIH: `'1'` (Principal/Normal), `'3'` (Continuação) ou `'5'` (Longa permanência). Valores fora de `{'1','3','5'}` são rejeitados. |
 | `CNES` | `CHAR(7)` | `cnes` | Código CNES do hospital. Deve existir previamente em `public.estabelecimento`. |
 | `DT_INTER` | `CHAR(8)` | `dt_internacao` | Convertido de `AAAAMMDD` para `DATE`. Na longa permanência (`IDENT='5'`), reflete a internação original e não o início da fatura mensal. |
@@ -65,7 +67,7 @@ Origem: `ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/` (reco
 | `VAL_UTI` | `TEXT/DEC` | `valor_uti` | Valor de UTI aprovado na AIH (`NUMERIC(12,2) >= 0`). |
 | `IDADE` | `TEXT/NUM` | `idade` | Valor numérico da idade na unidade indicada por `COD_IDADE` (`SMALLINT >= 0`). |
 | `COD_IDADE` | `CHAR(1)` | `cod_idade` | Unidade da idade (`'2'`=dias, `'3'`=meses, `'4'`=anos, `'5'`=centena de anos). |
-| `SEXO` | `CHAR(1)` | `sexo` | Sexo do paciente (`'1'`=Masculino, `'3'`/`'2'`=Feminino, `'0'`/`'9'`=Ignorado). |
+| `SEXO` | `CHAR(1)` | `sexo` | Código do sexo do paciente, gravado como veio no arquivo (o loader não valida nem traduz o código). |
 | `RACA_COR` | `CHAR(2)` | `raca_cor` | Raça/cor declarada. Vazio vira `NULL`. |
 | `MUNIC_RES` | `CHAR(6)` | `municipio_residencia` | Código IBGE (6 dígitos) do município de residência. Deve existir em `public.municipio`. |
 | `MUNIC_MOV` | `CHAR(6)` | `municipio_estabelecimento` | Código IBGE (6 dígitos) do município do estabelecimento. Deve existir em `public.municipio`. |
@@ -83,7 +85,7 @@ Origem: `ftp://ftp.datasus.gov.br/dissemin/publicos/CNES/200508_/Dados/ST/` (amo
 | `COMPETEN` | `CHAR(6)` | `competencia_inicio` | Validado contra a competência do arquivo (`AAAAMM`). Gravado como `DATE` (`AAAA-MM-01`). |
 | `CODUFMUN` | `CHAR(6)` | `cod_municipio` | Código IBGE de 6 dígitos; validado contra `public.municipio`. |
 | `TP_UNID` | `CHAR(2)` | `tipo_unidade` | Código do tipo de unidade no CNES (obrigatório). |
-| `TPGESTAO` | `CHAR(1)` | `tipo_gestao` | `'E'` (Estadual), `'M'` (Municipal), `'D'` (Dupla), `'S'` (Sem gestão), `'F'`/`'Z'` (legados). Obrigatório. |
+| `TPGESTAO` | `CHAR(1)` | `tipo_gestao` | `'E'` (Estadual), `'M'` (Municipal), `'D'` (Dupla), `'S'` (Sem gestão), `'F'`/`'Z'` (legados). Obrigatório (vazio rejeita a linha; o código não é validado contra a lista). |
 | `NAT_JUR` | `CHAR(4)` | `natureza_juridica` | Código CONCLA de natureza jurídica. Vazio vira `NULL`. |
 | `CNPJ_MAN` | `CHAR(14)` | `cnpj_mantenedora` | CNPJ da entidade mantenedora. Vazio ou `'00000000000000'` vira `NULL`. |
 | `VINC_SUS` | `CHAR(1)` | `vinculo_sus` | `'1'` → `TRUE`, `'0'` → `FALSE`, outros → `NULL`. |
@@ -116,9 +118,9 @@ Origem: `ftp://ftp.datasus.gov.br/dissemin/publicos/CNES/200508_/Dados/LT/` (amo
 
 ---
 
-## 3. Camada de Origem OLTP (`PostgreSQL 16`, schema `public`)
+## 3. Camada de Origem (`PostgreSQL 16`, schema `public`)
 
-Todas as tabelas de dados e de controle de carga na origem são **insert-only**, protegidas pela trigger `bloquear_alteracao()` (`BEFORE UPDATE OR DELETE`), que aborta qualquer tentativa de mutação ou exclusão.
+As tabelas de controle de carga (`carga`, `carga_rejeicao`) e de dados (`estabelecimento`, `estabelecimento_versao`, `leito`, `internacao`) são **insert-only**, protegidas por triggers `BEFORE UPDATE OR DELETE` que chamam a função `bloquear_alteracao()` e abortam qualquer tentativa de mutação ou exclusão. As tabelas de referência (`regiao_saude`, `municipio`, `cid`, `estabelecimento_regiao_df`) não têm essa trigger: o loader só insere nelas com `ON CONFLICT DO NOTHING`.
 
 ### 3.1. `public.carga`
 
@@ -175,7 +177,7 @@ Municípios brasileiros com vínculo para região de saúde (migração `0002`).
 | `cod_municipio` | `CHAR(6)` | Não | `PRIMARY KEY`, `CHECK (cod_municipio ~ '^[0-9]{6}$')` | Código IBGE do município com 6 dígitos (padrão DATASUS, sem dígito verificador). |
 | `nome` | `TEXT` | Não | — | Nome do município. |
 | `cod_uf` | `CHAR(2)` | Não | — | Código IBGE de 2 dígitos da UF. |
-| `cod_regiao_saude` | `CHAR(5)` | Sim | `FK -> regiao_saude(cod_regiao_saude)`, indexado | Região de saúde do município (em Brasília `530010` é `NULL` na tabela geral e resolvido por hospital em `estabelecimento_regiao_df`). |
+| `cod_regiao_saude` | `CHAR(5)` | Sim | `FK -> regiao_saude(cod_regiao_saude)`, indexado | Região de saúde do município, lida de `br_regsaud.cnv`. Brasília (`530010`) recebe `'53001'` (Distrito Federal, sem divisão). A região de cada hospital do DF (`53002` a `53008`) é resolvida no dbt por `estabelecimento_regiao_df` (ver `int_estabelecimento_scd`). |
 
 ### 3.5. `public.cid`
 
@@ -244,6 +246,7 @@ Retrato mensal da capacidade física e contratual de leitos por estabelecimento 
 | `id_carga` | `BIGINT` | Não | `PK`, `FK -> carga(id_carga) DEFERRABLE INITIALLY DEFERRED` | Carga que trouxe o registro (permite conviver com republicações do DATASUS). |
 | `dt_ingestao` | `TIMESTAMPTZ` | Não | `DEFAULT now()` | Carimbo de tempo de gravação na origem. |
 
+- **Chave primária:** `(competencia, cnes, cod_leito, id_carga)`. O `id_carga` entra na chave para que uma competência republicada pelo DATASUS conviva com a anterior; `leito_vigente` mostra só a última.
 - **Índices:** `idx_leito_cnes (cnes, competencia)`, `idx_leito_carga (id_carga)`.
 
 ### 3.10. `public.internacao`
@@ -281,6 +284,7 @@ Registros de Autorização de Internação Hospitalar (AIH reduzida — SIH/SUS)
 | `tipo_gestao` | `CHAR(1)` | Sim | — | Esfera de gestão informada na AIH. |
 | `dt_ingestao` | `TIMESTAMPTZ` | Não | `DEFAULT now()` | Carimbo de tempo de inserção no PostgreSQL. |
 
+- **Chave primária:** `(competencia, n_aih, dt_saida, id_carga)`. `dt_saida` está na chave porque a AIH de longa permanência aparece uma vez por período cobrado na mesma competência; `id_carga`, pelo mesmo motivo de `leito` (republicação).
 - **Índices:** `idx_internacao_carga (id_carga)`, `idx_internacao_cnes_saida (cnes, dt_saida)`, `idx_internacao_dt_internacao (dt_internacao)`, `idx_internacao_cid (cid_principal)`, `idx_internacao_n_aih (n_aih)`.
 
 ### 3.11. Visões da Origem (`public.*_vigente` e `estabelecimento_vigencia`)
@@ -298,7 +302,7 @@ Criadas nas migrações `0003` e `0006` para resolver a vigência temporal e ded
 
 ## 4. Camada Lakehouse (`Apache Iceberg v2` sobre `SeaweedFS S3`)
 
-O catálogo Iceberg é persistido no banco PostgreSQL `iceberg` e os dados residem no bucket `s3://lakehouse/` em arquivos Parquet comprimidos com **Zstandard (`zstd`)** (`lakehouse/esquemas.py`). Os arquivos originais baixados do DATASUS são arquivados em `s3://brutos/`.
+O catálogo Iceberg é persistido no banco PostgreSQL `iceberg` e os dados residem no bucket `s3://lakehouse/` em arquivos Parquet comprimidos com **Zstandard (`zstd`)**, o codec padrão do pyiceberg (o projeto não configura outro; os esquemas estão em `lakehouse/esquemas.py`). Os arquivos originais baixados do DATASUS são arquivados em `s3://brutos/`.
 
 ### 4.1. Tabelas Espelhadas nos Namespaces `lote.*` e `cdc.*`
 
@@ -395,6 +399,10 @@ Contém a lógica de negócio dimensional, o cálculo de vigência SCD Tipo 2 e 
 
 Os modelos de `transformacao/models/marts/` são materializados no DuckDB e copiados por `transformacao/publicar.py` para o schema `consumo` do PostgreSQL. O painel Streamlit (`painel/app.py`) lê exclusivamente deste schema.
 
+- **Publicação:** as dimensões e `sla` são sempre recriadas por inteiro. Os fatos (`fato_internacao`, `ocupacao_semana_regiao`, `causa_semana_regiao`) também, exceto no backfill de anos específicos, quando só as linhas desses anos são apagadas e regravadas (por `ano` ou pelo ano de `dt_saida`).
+- **Coluna "Nulo?":** as tabelas são criadas por `CREATE TABLE AS` a partir do DuckDB e não têm `NOT NULL` declarado no PostgreSQL (só `controle_freshness` tem). Nesta seção, "Não" indica que o modelo não produz nulos, o que os testes dbt listados verificam quando existem.
+- **Coluna "Testes dbt":** testes genéricos de `_marts.yml` e testes singulares de `transformacao/tests/`.
+
 ### 6.1. `consumo.dim_regiao_saude`
 
 Dimensão geográfica das regiões de saúde do DF e de Goiás.
@@ -402,7 +410,7 @@ Dimensão geográfica das regiões de saúde do DF e de Goiás.
 | Coluna | Tipo Postgres | Nulo? | Testes dbt (`_marts.yml`) | Descrição |
 | --- | --- | --- | --- | --- |
 | `cod_regiao_saude` | `TEXT` | Não | `not_null`, `unique` | Código identificador de 5 dígitos da região de saúde. |
-| `nome` | `TEXT` | Não | `not_null` | Nome da região de saúde (ex.: `'Central'`, `'Oeste'`, `'Sul'`, `'Entorno Sul'`). |
+| `nome` | `TEXT` | Não | `not_null` | Nome da região de saúde como vem do `br_regsaud.cnv`: no DF, `'Região de Saúde Central'`, `'Região de Saúde Oeste'` etc. e `'Distrito Federal'` (`53001`); em GO, nomes curtos como `'Central'`, `'Sul'`, `'Entorno Sul'`. Há nomes repetidos entre UFs, por isso filtre pelo código. |
 | `cod_uf` | `TEXT` | Não | `not_null` | Código IBGE da UF (`'53'` para DF, `'52'` para GO). |
 
 ### 6.2. `consumo.dim_estabelecimento`
@@ -457,9 +465,9 @@ Tabela fato ao nível de AIH paga na carga vigente, vinculada à versão do esta
 
 | Coluna | Tipo Postgres | Nulo? | Testes dbt | Descrição |
 | --- | --- | --- | --- | --- |
-| `competencia` | `DATE` | Não | `teste_uma_versao_por_internacao` | Competência de processamento da AIH (`AAAA-MM-01`). |
-| `n_aih` | `TEXT` | Não | `not_null`, `teste_uma_versao_por_internacao` | Número da AIH (13 dígitos). |
-| `dt_saida` | `DATE` | Não | `not_null`, `teste_uma_versao_por_internacao` | Data de saída do paciente. |
+| `competencia` | `DATE` | Não | — | Competência de processamento da AIH (`AAAA-MM-01`). |
+| `n_aih` | `TEXT` | Não | `not_null` | Número da AIH (13 dígitos). |
+| `dt_saida` | `DATE` | Não | `not_null` | Data de saída do paciente. |
 | `cnes` | `TEXT` | Não | — | Código CNES natural do hospital. |
 | `sk_estabelecimento` | `BIGINT` | Não | `not_null`, `relationships -> dim_estabelecimento` | Chave substituta da versão do hospital vigente no mês de `dt_saida`. |
 | `cod_regiao_saude` | `TEXT` | Sim | `relationships -> dim_regiao_saude` | Região de saúde do estabelecimento na vigência da saída. |
@@ -473,6 +481,9 @@ Tabela fato ao nível de AIH paga na carga vigente, vinculada à versão do esta
 | `cadastro_posterior` | `BOOLEAN` | Não | — | `TRUE` quando `dt_saida` é anterior à primeira versão cadastral conhecida do CNES (fallback para a versão mais antiga disponível). |
 | `construida_em` | `TIMESTAMPTZ` | Não | — | Carimbo de tempo de construção da linha pelo dbt. |
 
+- **Testes de tabela:**
+  - `teste_volume_internacao`: o fato tem uma linha para cada AIH de `stg_internacao` (só na construção completa, não no backfill de um ano).
+  - `teste_uma_versao_por_internacao`: cada AIH de `stg_internacao` encontra exatamente uma versão do estabelecimento em `int_internacao`, que alimenta este fato.
 - **Índice de Otimização (`sql/e3/indice.sql`):**
   - `idx_fato_internacao_cnes_saida ON consumo.fato_internacao (cnes, dt_saida) INCLUDE (capitulo_cid, dias_permanencia)`
 
@@ -489,13 +500,17 @@ Tabela fato agregada principal que responde à pergunta de gestão da plataforma
 | `mes` | `DATE` | Não | — | Mês civil da segunda-feira (`AAAA-MM-01`), cujo cadastro CNES-LT fornece `leitos_sus`. |
 | `semana_iso` | `BIGINT` | Não | — | Número da semana ISO (`1` a `53`). |
 | `ano_iso` | `BIGINT` | Não | — | Ano ISO da semana. |
-| `leitos_sus` | `BIGINT` | Não | `not_null`, `teste_ocupacao_distribuicao (> 0)` | Soma de `qt_sus` dos estabelecimentos da região na competência de `mes`. |
+| `leitos_sus` | `BIGINT` | Não | `not_null`, `teste_ocupacao_distribuicao (>= 0)` | Soma de `qt_sus` dos estabelecimentos da região na competência de `mes`. Sempre `> 0`, porque `int_semana` descarta meses sem leito SUS. |
 | `paciente_dias` | `BIGINT` | Não | `not_null`, `teste_volume_paciente_dia`, `teste_ocupacao_distribuicao (>= 0)` | Total de paciente-dias ocupados na região durante os 7 dias daquela semana. |
 | `ocupacao` | `DOUBLE PRECISION` | Não | `teste_ocupacao_distribuicao (0 <= ocupacao < 5.0)` | Taxa de ocupação semanal estimada: $\text{ocupacao} = \frac{\text{paciente\_dias}}{\text{leitos\_sus} \times 7,0}$. |
 | `acima_de_85` | `BOOLEAN` | Não | `not_null` | Indicador de sobrecarga hospitalar: `TRUE` quando `ocupacao > 0.85` (85%). |
 | `provisoria` | `BOOLEAN` | Não | — | `TRUE` quando o mês da semana ainda está na janela de dado atrasado (< 3 competências subsequentes). |
 | `construida_em` | `TIMESTAMPTZ` | Não | `not_null`, `teste_freshness_sla` | Carimbo de tempo de materialização do mart no dbt. |
 
+- **Testes de tabela:**
+  - `teste_buraco_de_serie`: toda segunda-feira de um mês com leito SUS na região aparece na tabela.
+  - `teste_serie_completa`: na carga completa (`serie_completa = true`), o DF cobre 2021 a 2025.
+  - `teste_regiao_que_some`: nenhuma região do DF com leito no primeiro ano da série some no último.
 - **Índice de Otimização (`sql/e3/indice.sql`):**
   - `idx_ocupacao_regiao_ano ON consumo.ocupacao_semana_regiao (cod_regiao_saude, ano, semana) INCLUDE (ocupacao, acima_de_85)`
 
@@ -511,7 +526,7 @@ Tabela fato que decompõe a ocupação semanal de cada região de saúde por cap
 | `capitulo_cid` | `TEXT` | Não | `not_null`, `teste_unicidade_causa` | Código de 2 dígitos do capítulo da CID-10 (`'01'` a `'22'` / `'99'`). |
 | `capitulo_nome` | `TEXT` | Não | — | Nome do capítulo da CID-10. |
 | `paciente_dias` | `BIGINT` | Não | `not_null`, `teste_volume_paciente_dia` | Total de paciente-dias daquele capítulo da CID na região e semana. |
-| `parcela` | `DOUBLE PRECISION` | Não | `not_null`, `teste_parcelas_cid (soma = 1.0 ± 0.0001)` | Fração dos paciente-dias da semana explicada pelo capítulo: $\frac{\text{paciente\_dias}}{\sum \text{paciente\_dias da semana na região}}$. |
+| `parcela` | `DOUBLE PRECISION` | Não | `not_null`, `teste_parcelas_cid (soma = 1.0 ± 0.001)` | Fração dos paciente-dias da semana explicada pelo capítulo: $\frac{\text{paciente\_dias}}{\sum \text{paciente\_dias da semana na região}}$. |
 | `construida_em` | `TIMESTAMPTZ` | Não | — | Carimbo de tempo de materialização do mart no dbt. |
 
 ### 6.8. `consumo.sla` e `consumo.controle_freshness`
@@ -542,7 +557,7 @@ Tabelas de governança de atualização e monitoramento do Acordo de Nível de S
 
 ## 7. Camada Semântica / Banco Vetorial (`PostgreSQL 16 + pgvector`)
 
-Criada pela migração `0008_pgvector.py` e populada por `semantico/experimento.py` para avaliar busca por similaridade de cosseno contra o filtro determinístico `acima_de_85` (ver [ADR 0004](adr/0004-cosseno-nao-e-o-limiar.md)).
+A tabela é criada pela migração `0008_pgvector.py` e populada por `semantico/experimento.py`, que também apaga e recria o índice HNSW a cada execução. O objetivo é avaliar a busca por similaridade de cosseno contra o filtro determinístico `acima_de_85` (ver [ADR 0004](adr/0004-cosseno-nao-e-o-limiar.md)).
 
 ### 7.1. `semantico.trecho`
 
@@ -560,7 +575,7 @@ Criada pela migração `0008_pgvector.py` e populada por `semantico/experimento.
 | `texto` | `TEXT` | Não | — | Frase em linguagem natural sintetizada a partir da linha do mart (`semantico/frases.py`). |
 | `embedding` | `vector(384)` | Não | Índice HNSW `trecho_embedding_hnsw` | Vetor denso de 384 dimensões gerado localmente pelo modelo `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`. |
 
-- **Índice Vetorial:**
+- **Índice Vetorial** (criado em `semantico/experimento.py`, não na migração):
   - `CREATE INDEX trecho_embedding_hnsw ON semantico.trecho USING hnsw (embedding vector_cosine_ops)`
 
 ---
@@ -579,7 +594,7 @@ Criada pela migração `0008_pgvector.py` e populada por `semantico/experimento.
 | `53007` | Norte | Sobradinho, Planaltina (HRS, HRPL) |
 | `53008` | Leste | Paranoá, São Sebastião, Jardim Botânico (HRL, Casa de Parto de São Sebastião) |
 
-*(Nota: O código `53001` aparece em arquivos históricos do TabWin como "Brasília — Distrito Federal" agregado, mas todos os hospitais do DF com internação são alocados nas 7 regiões operacionais `53002` a `53008` via `estabelecimento_regiao_df`.)*
+*(Nota: no banco, os nomes vêm do `br_regsaud.cnv` com o prefixo "Região de Saúde", por exemplo `'Região de Saúde Oeste'`. O `.cnv` também traz `53001` ("Distrito Federal"), a região do município `530010` em `public.municipio`. Ela está em `dim_regiao_saude`, mas não recebe hospitais: no dbt, todo estabelecimento do DF tem a região lida de `estabelecimento_regiao_df`. Um hospital do DF que não está no CSV curado fica com `cod_regiao_saude = NULL` e não entra na ocupação nem nas causas.)*
 
 ### 8.2. Domínios de Códigos do SUS
 
@@ -595,7 +610,7 @@ Criada pela migração `0008_pgvector.py` e populada por `semantico/experimento.
 | **`tipo_gestao`** | `'E'` | Estadual / Distrital (padrão da SES-DF) |
 | | `'M'` | Municipal |
 | | `'D'` | Dupla (Estadual e Municipal) |
-| | `'S'` | Sem gestão / Federal |
+| | `'S'` | Sem gestão |
 | | `'F'`, `'Z'` | Códigos legados aceitos pelo contrato de esquema do dbt |
 | **`cod_idade`** | `'2'` | Idade expressa em dias |
 | | `'3'` | Idade expressa em meses |
